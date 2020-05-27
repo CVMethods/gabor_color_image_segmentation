@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 #!/usr/bin/env python
 
-import os, time
+import os, time, pdb
 
 from math import *
 import numpy as np
@@ -17,10 +17,8 @@ from metrics import *
 # when executed, run the main script
 # ---------------------------------
 if __name__ == '__main__':
-
-    img_path = "./data/Berkeley/train/"
+    img_path = 'data/Berkeley/train/'
     names = os.listdir(img_path)
-
     for name in names[:5]:
 
         # Load the input image
@@ -38,10 +36,6 @@ if __name__ == '__main__':
         m = metrics(img, labels, segments)
         m.set_metrics()
         m.display_metrics()
-
-
-        
-
 
 
 
