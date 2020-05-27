@@ -10,8 +10,8 @@ import matplotlib.pyplot as plt
 from skimage.io import imread
 from skimage.segmentation import slic
 
-from groundtruth import *
-from metrics import *
+from BSD_metrics.groundtruth import *
+from BSD_metrics.metrics import *
 
 # ---------------------------------
 # when executed, run the main script
