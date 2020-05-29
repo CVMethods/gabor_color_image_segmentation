@@ -228,13 +228,13 @@ class metrics:
         Display the computed metrics
         """
 
-        print("Regions: " + str(self.n_segments) + 
-         " Recall: " + str(self.recall) +
-         " Precision: " + str(self.precision) + 
-         " Undersegmentation: " + str(self.undersegmentation) + 
-         " Undersegmentation (NP) " + str(self.undersegmentationNP) +
-         " Compactness " + str(self.compactness) + 
-         " Density " + str(self.density))
+        print("Regions: " + str(self.n_segments) + "\n",
+         " Recall: " + str(self.recall) + "\n",
+         " Precision: " + str(self.precision) + "\n",
+         " Undersegmentation (Bergh): " + str(self.undersegmentation) + "\n",
+         " Undersegmentation (NP): " + str(self.undersegmentationNP) + "\n",
+         " Compactness: " + str(self.compactness) + "\n",
+         " Density: " + str(self.density) + "\n")
 
     # -------------------------------------------
     # Return metrics

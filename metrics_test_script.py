@@ -17,7 +17,7 @@ from BSD_metrics.metrics import *
 # when executed, run the main script
 # ---------------------------------
 if __name__ == '__main__':
-    img_path = 'data/Berkeley/train/'
+    img_path = "data/Berkeley/train/"
     names = os.listdir(img_path)
     for name in names[:5]:
 
@@ -30,8 +30,7 @@ if __name__ == '__main__':
         labels = slic(img, n_segments=300, compactness=10.0)
 
         # Load the ground truth
-        segments = get_segment_from_filename(name[:-4])   
-
+        segments = get_segment_from_filename(name[:-4])
         # Evaluate metrics
         m = metrics(img, labels, segments)
         m.set_metrics()
