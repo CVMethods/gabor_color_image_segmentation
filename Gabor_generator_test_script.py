@@ -37,5 +37,4 @@ axes1[n_freq-1, np.int(np.ceil(n_angles/2))].set_xlabel('Orientation   $\\theta_
 axes1[np.int(np.ceil(n_freq/2)), 0].set_ylabel('Frequency   $f_i$   $\\rightarrow$', fontsize=10)
 fig1.subplots_adjust(top=0.92, bottom=0.08, left=0.10, right=0.95, hspace=0.45, wspace=0.45)
 fig1.suptitle('Gabor filterbank ', fontsize=10)
-# figcaption('Gabor filter bank', label="fig:gabor_filterbank")
 plt.show()

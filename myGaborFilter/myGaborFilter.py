@@ -4,11 +4,11 @@ from scipy.ndimage import gaussian_filter
 from skimage.morphology import square, opening
 from joblib import Parallel, delayed
 
-__all__ = ['makeGabor_filter', 'makeGabor_filterbank']
+__all__ = ['makeGabor_filter', 'makeGabor_filterbank', 'applyGabor_filter', 'applyGabor_filterbank']
 
 
-def makeGabor_filter(frequency=0.1, angle=0, alpha=0.1, beta=0.1, freq_bandwidth=None, angle_bandwidth=None, freq_crossing_point=0.5, ang_crossing_point=0.5, n_stds=3.5):
-
+def makeGabor_filter(frequency=0.1, angle=0, alpha=0.1, beta=0.1, freq_bandwidth=None, angle_bandwidth=None,
+                     freq_crossing_point=0.5, ang_crossing_point=0.5, n_stds=3.5):
     if freq_bandwidth is not None:
         k = 2 ** freq_bandwidth
         gamma = (1 / np.pi) * np.sqrt(np.log(1 / freq_crossing_point)) * ((k + 1) / (k - 1))
@@ -38,8 +38,8 @@ def makeGabor_filter(frequency=0.1, angle=0, alpha=0.1, beta=0.1, freq_bandwidth
     return gabor_norm, params
 
 
-def makeGabor_filterbank(min_period=2., max_period=40., freq_bandwidth=1, angle_bandwidth=45, freq_crossing_point=0.5, ang_crossing_point=0.5, n_stds=3.5):
-
+def makeGabor_filterbank(min_period=2., max_period=40., freq_bandwidth=1, angle_bandwidth=45, freq_crossing_point=0.5,
+                         ang_crossing_point=0.5, n_stds=3.5):
     k = 2 ** freq_bandwidth
     angle_bandwidth = np.deg2rad(angle_bandwidth)
 
@@ -64,14 +64,18 @@ def makeGabor_filterbank(min_period=2., max_period=40., freq_bandwidth=1, angle_
 
     return gabor_filters, frequencies, angles
 
+
 def applyGabor_filter(image, filtr, resp_type, smooth, morph_opening, se_z):
-    img_padded = np.pad(image, ((filtr[0].shape[0] // 2, filtr[0].shape[0] // 2), (filtr[0].shape[1] // 2, filtr[0].shape[1] // 2)), mode='symmetric')
-    resp = np.vectorize(complex)(convolve(img_padded, filtr[0].real, mode='valid'), convolve(img_padded, filtr[0].imag, mode='valid'))
-#     resp = convolve(img_padded, filtr[0], mode='valid')
+    img_padded = np.pad(image, (
+    (filtr[0].shape[0] // 2, filtr[0].shape[0] // 2), (filtr[0].shape[1] // 2, filtr[0].shape[1] // 2)),
+                        mode='symmetric')
+    resp = np.vectorize(complex)(convolve(img_padded, filtr[0].real, mode='valid'),
+                                 convolve(img_padded, filtr[0].imag, mode='valid'))
+    #     resp = convolve(img_padded, filtr[0], mode='valid')
 
-#     resp /= (filtr[1].get('sigma')**2)#np.sqrt(filtr[1].get('sigma'))*2
+    #     resp /= (filtr[1].get('sigma')**2)#np.sqrt(filtr[1].get('sigma_x'))*2
 
-    print(filtr[0].shape)
+    # print(filtr[0].shape)
     if resp_type == 'L2':
         resp_1 = np.abs(resp)
 
@@ -80,20 +84,20 @@ def applyGabor_filter(image, filtr, resp_type, smooth, morph_opening, se_z):
     elif resp_type == 'imag':
         resp_1 = resp.imag
     elif resp_type == 'square':
-        resp_1 = resp.real**2 + resp.imag ** 2
+        resp_1 = resp.real ** 2 + resp.imag ** 2
     elif resp_type == 'complete':
         resp_1 = resp
 
     if morph_opening:
-        print('opening')
-        period = np.int(se_z/filtr[1].get('freq'))
+        # print('opening')
+        period = np.int(se_z / filtr[1].get('frequency'))
         selem = square(period)
         resp_opened = opening(resp_1, selem=selem)
     else:
         resp_opened = resp_1
 
     if smooth:
-        sigma_s = 1. * filtr[1].get('sigma')
+        sigma_s = 1. * filtr[1].get('sigma_x')
 
         if np.iscomplexobj(resp_1):
             resp_smth = np.copy(resp_1)
@@ -102,13 +106,15 @@ def applyGabor_filter(image, filtr, resp_type, smooth, morph_opening, se_z):
         else:
             resp_smth = gaussian_filter(resp_opened, sigma=sigma_s, truncate=1.5, mode='reflect')
 
-    else: resp_smth = resp_opened
+    else:
+        resp_smth = resp_opened
 
     return np.array(resp_smth)
 
 
-def applyGabor_filterbank(img, filterbank, resp_type, smooth, opning, se_z):
+def applyGabor_filterbank(img, filterbank, resp_type, smooth, morph_opening, se_z):
     num_cores = -1
-    responses = Parallel(n_jobs=num_cores)(delayed(applyGabor_filter)(img, g_filter, resp_type, smooth, opning, se_z) for g_filter in filterbank)
+    responses = Parallel(n_jobs=num_cores)(
+        delayed(applyGabor_filter)(img, g_filter, resp_type, smooth, morph_opening, se_z) for g_filter in filterbank)
 
     return np.array(responses)
