@@ -127,6 +127,25 @@ def calc_semisat(lum, m=0, f=0):
 
     return f * (Lav ** m)
 
+
+def gaussian_color_model(arr):
+    gauss_model_from_rgb = np.array([[0.006, 0.63, 0.31],
+                                     [0.19, 0.18, -0.37],
+                                     [0.22, -0.44, 0.06]])
+    return np.dot(arr, gauss_model_from_rgb.T.copy())
+
+
+def gaussian_shadow_color_model(arr):
+    # arr = img_as_float32(arr)
+    arr[np.where(arr == 0)] = 1
+    gcm = gaussian_color_model(arr)
+    gscm = np.zeros((gcm.shape))
+    gscm[:, :, 0] = np.log(gcm[:, :, 0])
+    gscm[:, :, 1] = np.divide(gcm[:, :, 1], gcm[:, :, 0])
+    gscm[:, :, 2] = np.divide(np.subtract((gcm[:, :, 0] * gcm[:, :, 2]), gcm[:, :, 1]**2), gcm[:, :, 0]**2)
+    return gscm
+
+
 def reshape4clustering(feature, rows, cols):
     if feature.ndim == 3 and feature.shape[-1] == 3:
         feature = feature.reshape((rows*cols, 3))
