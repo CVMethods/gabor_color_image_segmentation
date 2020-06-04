@@ -105,9 +105,9 @@ for i_dataset, (dataset, algo_params) in enumerate(datasets):
     # ============
     # ms = cluster.MeanShift(bandwidth=bandwidth, bin_seeding=True)
     two_means = cluster.MiniBatchKMeans(n_clusters=params['n_clusters'])
-    ward = cluster.AgglomerativeClustering(
-        n_clusters=params['n_clusters'], linkage='ward',
-        connectivity=connectivity)
+    # ward = cluster.AgglomerativeClustering(
+    #     n_clusters=params['n_clusters'], linkage='ward',
+    #     connectivity=connectivity)
     spectral = cluster.SpectralClustering(
         n_clusters=params['n_clusters'], eigen_solver='arpack',
         affinity="nearest_neighbors")
@@ -130,9 +130,9 @@ for i_dataset, (dataset, algo_params) in enumerate(datasets):
         # ('AffinityPropagation', affinity_propagation), # commented out since excessively long
         # ('MeanShift', ms), # commented out since too long bandwidth computation
         # ('SpectralClustering', spectral), # commented cause difficult to have it working
-        ('Ward', ward),
+        # ('Ward', ward), # commented out since too long
         # ('AgglomerativeClustering', average_linkage),
-        # ('DBSCAN', dbscan),
+        # ('DBSCAN', dbscan), # commented out since memory consuming
         # ('OPTICS', optics), # commented out since too long
         ('Birch', birch),
         # ('GaussianMixture', gmm) # commented out since too long on big images

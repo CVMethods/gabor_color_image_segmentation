@@ -1,16 +1,16 @@
 # -*- coding: utf-8 -*-
-#!/usr/bin/env python
+# !/usr/bin/env python
 
-import os, time, pdb
+import time, warnings, pdb, os
 
-from math import *
 import numpy as np
 import matplotlib.pyplot as plt
 from mpl_toolkits.axes_grid1 import make_axes_locatable
-from sklearn.cluster import KMeans, AgglomerativeClustering, SpectralClustering, DBSCAN
+
+from sklearn import cluster, datasets, mixture
+from sklearn.neighbors import kneighbors_graph
 import scipy.cluster.vq as vq
 from sklearn.preprocessing import StandardScaler
-
 from skimage.io import imread
 from skimage.segmentation import slic
 from sklearn.decomposition import PCA
@@ -19,7 +19,6 @@ from BSD_metrics.groundtruth import *
 from BSD_metrics.metrics import *
 from myGaborFilter.myGaborFilter import *
 from complexColor.color_transformations import *
-
 
 if __name__ == '__main__':
     # img_path = "data/myFavorite_BSDimages/"
@@ -33,12 +32,12 @@ if __name__ == '__main__':
 
     # Generating Gabor filterbank
     min_period = 2.
-    max_period = 25.
-    fb = 1
-    ab = 45
+    max_period = 35.
+    fb = 0.7
+    ab = 30
     c1 = 0.9
-    c2 = 0.5
-    stds = 3.0
+    c2 = 0.7
+    stds = 3.5
     gabor_filters, frequencies, angles = makeGabor_filterbank(min_period, max_period, fb, ab, c1, c2, stds)
 
     n_freq = len(frequencies)
@@ -59,22 +58,33 @@ if __name__ == '__main__':
     fig1.subplots_adjust(top=0.92, bottom=0.08, left=0.10, right=0.95, hspace=0.45, wspace=0.45)
     fig1.suptitle('Gabor filterbank ', fontsize=10)
 
-    lbls = [2, 4, 4, 2, 3, 3, 2]
+    lbls = [2, 3, 4, 2, 3, 3, 2]
     # lbls = [3, 3, 3, 3, 3, 3, 3]
     l = 0
-    img_metrics = []
-    for name in names:
+
+
+    default_base = {'quantile': .3,
+                    'eps': .3,
+                    'damping': .9,
+                    'preference': -200,
+                    'n_neighbors': 10,
+                    'n_clusters': 2,
+                    'min_samples': 20,
+                    'xi': 0.05,
+                    'min_cluster_size': 0.1,
+                    'n_jobs': -1}
+
+    for img_name in names:
 
         # Load the input image
-        print("Processing image " + name[:-4])
-        img_orig = imread(img_path + name)
+        print("Processing image " + img_name[:-4])
+        img_orig = imread(img_path + img_name)
         rows, cols, channels = img_orig.shape[0], img_orig.shape[1], img_orig.shape[2]
 
         # plt.figure(dpi=180)
         # plt.imshow(img_orig)
         # plt.title('Input image', fontsize=10)
         # plt.axis('off')
-
 
         color_space = 'HS'
         lum, chrom_r, chrom_i = img2complex_colorspace(img_orig, color_space)
@@ -109,20 +119,24 @@ if __name__ == '__main__':
         opn = True
         selem_size = 1
 
-        g_responses_lum = applyGabor_filterbank(lum, gabor_filters, resp_type=r_type, smooth=gsmooth, morph_opening=opn, se_z=selem_size)
+        g_responses_lum = applyGabor_filterbank(lum, gabor_filters, resp_type=r_type, smooth=gsmooth, morph_opening=opn,
+                                                se_z=selem_size)
 
         ############## Chrominance real ##############
 
-        g_responses_cr = applyGabor_filterbank(chrom_r, gabor_filters, resp_type=r_type, smooth=gsmooth, morph_opening=opn, se_z=selem_size)
+        g_responses_cr = applyGabor_filterbank(chrom_r, gabor_filters, resp_type=r_type, smooth=gsmooth,
+                                               morph_opening=opn, se_z=selem_size)
 
         ############## Chrominance imag ##############
 
-        g_responses_ci = applyGabor_filterbank(chrom_i, gabor_filters, resp_type=r_type, smooth=gsmooth, morph_opening=opn, se_z=selem_size)
+        g_responses_ci = applyGabor_filterbank(chrom_i, gabor_filters, resp_type=r_type, smooth=gsmooth,
+                                               morph_opening=opn, se_z=selem_size)
 
         ################################## Gabor responses normalization ##################################
 
         g_responses = np.array([g_responses_lum, g_responses_cr, g_responses_ci])
-        g_responses_norm = normalize_img(g_responses, rows, cols)  # * (rows*cols) # g_responses / np.sum(np.abs(np.array([g_responses_lum, g_responses_cr, g_responses_ci]))**2)
+        g_responses_norm = normalize_img(g_responses, rows,
+                                         cols)  # * (rows*cols) # g_responses / np.sum(np.abs(np.array([g_responses_lum, g_responses_cr, g_responses_ci]))**2)
 
         g_responses_lum = g_responses_norm[0]
         g_responses_cr = g_responses_norm[1]
@@ -189,82 +203,161 @@ if __name__ == '__main__':
             X.append(reshape4clustering(g_responses_ci[ff], rows, cols))
 
         X = np.array(X).T
-        # X = vq.whiten(X)
-        X = StandardScaler().fit_transform(X)
-        pca = PCA(n_components=3)
-        reduced_X = pca.fit_transform(X)
+
+        # # normalize dataset for easier parameter selection
+        # X = StandardScaler().fit_transform(X)
+        X = vq.whiten(X)
+
+        # Reduce data dimensionality (if needed for faster clustering computation)
+        pca = PCA(n_components=4)
+        X = pca.fit_transform(X)
+
+        # # Add pixel's position to features to include locality
         # pixels = np.arange(rows * cols)
         # nodes = pixels.reshape((rows, cols))
         # yy, xx = np.where(nodes >= 0)
         # X = np.column_stack((X, yy, xx))
 
-        nc = 3  # lbls[l]
-        # l += 1
-        clustering = KMeans(n_clusters=nc, random_state=0, n_jobs=-1).fit(reduced_X)
-        # # clustering = SpectralClustering(affinity='nearest_neighbors', n_neighbors=4, eigen_solver='amg', n_jobs=-1).fit(reduced_X)
-        # clustering = DBSCAN(eps=0.9, n_jobs=-1).fit(reduced_X)
-        # clustering = AgglomerativeClustering(eps=0.9, n_jobs=-1).fit(reduced_X)
+        # update parameters with dataset-specific values
+        params = default_base.copy()
+        params['n_clusters'] = lbls[l]  # 3  #
+        l += 1
 
-        kmeans_labels = clustering.labels_.reshape((rows, cols))
+        # # estimate bandwidth for mean shift
+        # bandwidth = cluster.estimate_bandwidth(X, quantile=params['quantile'])
 
-        fig = plt.figure(dpi=180)
-        ax = plt.gca()
-        im = ax.imshow(kmeans_labels, cmap=plt.cm.get_cmap('Set1', nc))
-        ax.tick_params(axis='both', which='both', labelsize=7, pad=0.1,
-                       length=2)  # , bottom=False, left=False, labelbottom=False, labelleft=False
-        ax.set_title('KMeans labels, k=%d' % nc, fontsize=10)
+        # # connectivity matrix for structured Ward
+        # connectivity = kneighbors_graph(
+        #     X, n_neighbors=params['n_neighbors'], include_self=False)
+        # # make connectivity symmetric
+        # connectivity = 0.5 * (connectivity + connectivity.T)
 
-        divider = make_axes_locatable(ax)
-        cax = divider.append_axes("right", size="5%", pad=0.1)
-        cb = plt.colorbar(im, cax=cax, ticks=(np.arange(nc) + 0.5) * (nc - 1) / nc)
-        cb.set_label(label='$labels$', fontsize=10)
-        cb.ax.tick_params(labelsize=6)
-        cb.ax.set_yticklabels([r'${{{}}}$'.format(val) for val in range(nc)])
-        plt.savefig(outdir + name[:-4]+'_segm.png')
+        # ============
+        # Create cluster objects
+        # ============
+        # ms = cluster.MeanShift(bandwidth=bandwidth, bin_seeding=True)
+        two_means = cluster.MiniBatchKMeans(n_clusters=params['n_clusters'], random_state=0)
+        k_means = cluster.KMeans(params['n_clusters'], random_state=0, n_jobs=params['n_jobs'])
+        # ward = cluster.AgglomerativeClustering(
+        #     n_clusters=params['n_clusters'], linkage='ward',
+        #     connectivity=connectivity)
+        spectral = cluster.SpectralClustering(
+            n_clusters=params['n_clusters'], eigen_solver='arpack',
+            affinity="nearest_neighbors")
+        dbscan = cluster.DBSCAN(eps=params['eps'])
+        optics = cluster.OPTICS(min_samples=params['min_samples'],
+                                xi=params['xi'],
+                                min_cluster_size=params['min_cluster_size'],
+                                n_jobs=params['n_jobs'])
+        # affinity_propagation = cluster.AffinityPropagation(
+        #     damping=params['damping'], preference=params['preference'])
+        # average_linkage = cluster.AgglomerativeClustering(
+        #     linkage="average", affinity="cityblock",
+        #     n_clusters=params['n_clusters'], connectivity=connectivity)
+        birch = cluster.Birch(n_clusters=params['n_clusters'])
+        gmm = mixture.GaussianMixture(
+            n_components=params['n_clusters'], covariance_type='full')
 
-        ## Performs the segmentation
-        # labels = slic(img, n_segments=300, compactness=10.0)
+        # uncomment to try other clustering algorithms
+        clustering_algorithms = (
+            ('KMeans', k_means),
+            ('MiniBatchKMeans', two_means),
+            # ('AffinityPropagation', affinity_propagation), # commented out since excessively long
+            # ('MeanShift', ms), # commented out since too long bandwidth computation
+            # ('SpectralClustering', spectral), # commented cause difficult to have it working
+            # ('Ward', ward), # commented out since too long connectivity computation
+            # ('AgglomerativeClustering', average_linkage), # commented out since too long connectivity computation
+            # ('DBSCAN', dbscan), # commented out since memory consuming
+            # ('OPTICS', optics), # commented out since too long (even with parallel jobs)
+            ('Birch', birch),
+            ('GaussianMixture', gmm) # commented out since too long on big images
+        )
+        img_metrics = []
+        for algo_name, algorithm in clustering_algorithms:
+            t0 = time.time()
+            print('algorithm %s' % algo_name)
 
-        # Load the ground truth
-        segments = get_segment_from_filename(name[:-4])
-        # Evaluate metrics
-        m = metrics(img_orig, kmeans_labels, segments)
-        m.set_metrics()
-        # m.display_metrics()
+            # catch warnings related to kneighbors_graph
+            with warnings.catch_warnings():
+                warnings.filterwarnings(
+                    "ignore",
+                    message="the number of connected components of the " +
+                            "connectivity matrix is [0-9]{1,2}" +
+                            " > 1. Completing it to avoid stopping the tree early.",
+                    category=UserWarning)
+                warnings.filterwarnings(
+                    "ignore",
+                    message="Graph is not fully connected, spectral embedding" +
+                            " may not work as expected.",
+                    category=UserWarning)
+                algorithm.fit(X)
 
-        metrics_values = list(m.get_metrics().values())
-        # dict_metrics = m.get_metrics()
-        # dict_metrics.update({'image_name': name[:-4]})
-        img_metrics.append(metrics_values)
+            t1 = time.time()
+            if hasattr(algorithm, 'labels_'):
+                y_pred = algorithm.labels_.astype(np.int)
+            else:
+                y_pred = algorithm.predict(X)
 
+            nc = len(np.unique(y_pred))
+            y_pred = y_pred.reshape((rows, cols))
 
-    img_metrics = np.array(img_metrics)
-    recall_avg = np.mean(img_metrics[:, 1])
-    precision_avg = np.mean(img_metrics[:, 2])
-    underseg_avg = np.mean(img_metrics[:, 3])
-    undersegNP_avg = np.mean(img_metrics[:, 4])
-    compactness_avg = np.mean(img_metrics[:, 5])
-    density_avg = np.mean(img_metrics[:, 6])
+            # Load the ground truth
+            segments = get_segment_from_filename(img_name[:-4])
 
-    recall_std = np.std(img_metrics[:, 1])
-    precision_std = np.std(img_metrics[:, 2])
-    underseg_std = np.std(img_metrics[:, 3])
-    undersegNP_std = np.std(img_metrics[:, 4])
-    compactness_std = np.std(img_metrics[:, 5])
-    density_std = np.std(img_metrics[:, 6])
+            # Evaluate metrics
+            m = metrics(img_orig, y_pred, segments)
+            m.set_metrics()
+            m.display_metrics()
 
-    print(" Avg Recall: " + str(recall_avg) + "\n",
-          " Avg Precision: " + str(precision_avg) + "\n",
-          " Avg Undersegmentation (Bergh): " + str(underseg_avg) + "\n",
-          " Avg Undersegmentation (NP): " + str(undersegNP_avg) + "\n",
-          " Avg Compactness: " + str(compactness_avg) + "\n",
-          " Avg Density: " + str(density_avg) + "\n")
+            metrics_values = m.get_metrics()
+            # metrics_values = list(m.get_metrics().values())
+            # dict_metrics = m.get_metrics()
+            # dict_metrics.update({'image_name': name[:-4]})
+            # img_metrics.append(metrics_values)
 
-    print(" Std Recall: " + str(recall_std) + "\n",
-          " Std Precision: " + str(precision_std) + "\n",
-          " Std Undersegmentation (Bergh): " + str(underseg_std) + "\n",
-          " Std Undersegmentation (NP): " + str(undersegNP_std) + "\n",
-          " Std Compactness: " + str(compactness_std) + "\n",
-          " Std Density: " + str(density_std) + "\n")
+            fig = plt.figure(dpi=180)
+            ax = plt.gca()
+            im = ax.imshow(y_pred, cmap=plt.cm.get_cmap('Set1', nc))
+            ax.tick_params(axis='both', which='both', labelsize=7, pad=0.1,
+                           length=2)  # , bottom=False, left=False, labelbottom=False, labelleft=False
+            ax.set_title(algo_name + ' k=%d' % nc, fontsize=10)
+            ax.set_xlabel(('Recall: %.3f, Precision: %.3f, Time: %.2fs' % (metrics_values['recall'], metrics_values['precision'], (t1 - t0))).lstrip('0'), fontsize=10)
 
-    # plt.show()
+            divider = make_axes_locatable(ax)
+            cax = divider.append_axes("right", size="5%", pad=0.1)
+            cb = plt.colorbar(im, cax=cax, ticks=(np.arange(nc) + 0.5) * (nc - 1) / nc)
+            cb.set_label(label='$labels$', fontsize=10)
+            cb.ax.tick_params(labelsize=6)
+            cb.ax.set_yticklabels([r'${{{}}}$'.format(val) for val in range(nc)])
+            plt.savefig(outdir + img_name[:-4] + '_' + algo_name + '_segm.png')
+        #
+        # img_metrics = np.array(img_metrics)
+        # recall_avg = np.mean(img_metrics[:, 1])
+        # precision_avg = np.mean(img_metrics[:, 2])
+        # underseg_avg = np.mean(img_metrics[:, 3])
+        # undersegNP_avg = np.mean(img_metrics[:, 4])
+        # compactness_avg = np.mean(img_metrics[:, 5])
+        # density_avg = np.mean(img_metrics[:, 6])
+        #
+        # recall_std = np.std(img_metrics[:, 1])
+        # precision_std = np.std(img_metrics[:, 2])
+        # underseg_std = np.std(img_metrics[:, 3])
+        # undersegNP_std = np.std(img_metrics[:, 4])
+        # compactness_std = np.std(img_metrics[:, 5])
+        # density_std = np.std(img_metrics[:, 6])
+        #
+        # print(" Avg Recall: " + str(recall_avg) + "\n",
+        #       " Avg Precision: " + str(precision_avg) + "\n",
+        #       " Avg Undersegmentation (Bergh): " + str(underseg_avg) + "\n",
+        #       " Avg Undersegmentation (NP): " + str(undersegNP_avg) + "\n",
+        #       " Avg Compactness: " + str(compactness_avg) + "\n",
+        #       " Avg Density: " + str(density_avg) + "\n")
+        #
+        # print(" Std Recall: " + str(recall_std) + "\n",
+        #       " Std Precision: " + str(precision_std) + "\n",
+        #       " Std Undersegmentation (Bergh): " + str(underseg_std) + "\n",
+        #       " Std Undersegmentation (NP): " + str(undersegNP_std) + "\n",
+        #       " Std Compactness: " + str(compactness_std) + "\n",
+        #       " Std Density: " + str(density_std) + "\n")
+
+        # plt.show()
