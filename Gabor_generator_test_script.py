@@ -1,5 +1,5 @@
 import matplotlib.pyplot as plt
-from myGaborFilter.myGaborFilter import makeGabor_filter, makeGabor_filterbank
+from myGaborFilter.GaborFunctions import makeGabor_filter, makeGabor_filterbank
 import numpy as np
 from skimage.filters import gabor_kernel as gabor_skimage
 
