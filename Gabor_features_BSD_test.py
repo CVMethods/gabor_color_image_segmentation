@@ -17,7 +17,7 @@ from sklearn.decomposition import PCA
 
 from BSD_metrics.groundtruth import *
 from BSD_metrics.metrics import *
-from myGaborFilter.GaborFunctions import *
+from Gabor_analysis.myGaborFunctions import *
 from complexColor.color_transformations import *
 
 if __name__ == '__main__':
