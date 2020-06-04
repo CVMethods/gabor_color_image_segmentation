@@ -9,9 +9,11 @@ import matplotlib.pyplot as plt
 from mpl_toolkits.axes_grid1 import make_axes_locatable
 from sklearn.cluster import KMeans, AgglomerativeClustering, SpectralClustering, DBSCAN
 import scipy.cluster.vq as vq
+from sklearn.preprocessing import StandardScaler
 
 from skimage.io import imread
 from skimage.segmentation import slic
+from sklearn.decomposition import PCA
 
 from BSD_metrics.groundtruth import *
 from BSD_metrics.metrics import *
@@ -20,16 +22,22 @@ from complexColor.color_transformations import *
 
 
 if __name__ == '__main__':
+    # img_path = "data/myFavorite_BSDimages/"
     img_path = "data/myFavorite_BSDimages/"
+    outdir = 'data/outdir/'
+
+    if not os.path.exists(outdir):
+        os.makedirs(outdir)
+
     names = sorted(os.listdir(img_path))
 
     # Generating Gabor filterbank
-    min_period = 3.
-    max_period = 45.
+    min_period = 2.
+    max_period = 25.
     fb = 1
     ab = 45
     c1 = 0.9
-    c2 = 0.9
+    c2 = 0.5
     stds = 3.0
     gabor_filters, frequencies, angles = makeGabor_filterbank(min_period, max_period, fb, ab, c1, c2, stds)
 
@@ -54,6 +62,7 @@ if __name__ == '__main__':
     lbls = [2, 4, 4, 2, 3, 3, 2]
     # lbls = [3, 3, 3, 3, 3, 3, 3]
     l = 0
+    img_metrics = []
     for name in names:
 
         # Load the input image
@@ -90,7 +99,7 @@ if __name__ == '__main__':
         # axs[2].imshow(chrom_i, cmap='gray')
         # axs[2].set_title('Chrominance (imag part)')
 
-        print('Sum of the square values of the 2 channel image divided by the n° of pixels: ', np.sum(np.abs(img_2ch_norm) ** 2) / (rows * cols))
+        # print('Sum of the square values of the 2 channel image divided by the n° of pixels: ', np.sum(np.abs(img_2ch_norm) ** 2) / (rows * cols))
 
         ################################## Gabor filtering stage ##################################
 
@@ -122,7 +131,7 @@ if __name__ == '__main__':
         vmax = g_responses_norm.max()
         vmin = g_responses_norm.min()
 
-        print('[Min, Max] values among lum, chrom responses after normalization: ', [vmin, vmax])
+        # print('[Min, Max] values among lum, chrom responses after normalization: ', [vmin, vmax])
 
         ############## Luminance ##############
         # fig, axes = plt.subplots(n_freq, n_angles, dpi=180)
@@ -169,7 +178,7 @@ if __name__ == '__main__':
         # fig.subplots_adjust(top=0.92, bottom=0.08, left=0.10, right=0.95, hspace=0.25, wspace=0.35)
         # fig.suptitle('Gabor energy of chrominance (imag part) channel', fontsize=10)
 
-        print('Sum of the square values of the Gabor resp divided by the n° of pixels: ', np.sum(g_responses_norm ** 2) / (rows * cols))
+        # print('Sum of the square values of the Gabor resp divided by the n° of pixels: ', np.sum(g_responses_norm ** 2) / (rows * cols))
 
         ################################## Kmeans N°1 ##################################
 
@@ -180,19 +189,21 @@ if __name__ == '__main__':
             X.append(reshape4clustering(g_responses_ci[ff], rows, cols))
 
         X = np.array(X).T
-
+        # X = vq.whiten(X)
+        X = StandardScaler().fit_transform(X)
+        pca = PCA(n_components=3)
+        reduced_X = pca.fit_transform(X)
         # pixels = np.arange(rows * cols)
         # nodes = pixels.reshape((rows, cols))
         # yy, xx = np.where(nodes >= 0)
         # X = np.column_stack((X, yy, xx))
 
-        X = vq.whiten(X)
-
-        nc = lbls[l]
-        l += 1
-        clustering = KMeans(n_clusters=nc, random_state=0, n_jobs=-1).fit(X)
-        #     clustering = SpectralClustering(n_clusters=nc, affinity='nearest_neighbors', n_neighbors=4, eigen_solver='amg', n_jobs=-1).fit(X)
-        #     clustering = DBSCAN(eps=0.9, n_jobs=-1).fit(X)
+        nc = 3  # lbls[l]
+        # l += 1
+        clustering = KMeans(n_clusters=nc, random_state=0, n_jobs=-1).fit(reduced_X)
+        # # clustering = SpectralClustering(affinity='nearest_neighbors', n_neighbors=4, eigen_solver='amg', n_jobs=-1).fit(reduced_X)
+        # clustering = DBSCAN(eps=0.9, n_jobs=-1).fit(reduced_X)
+        # clustering = AgglomerativeClustering(eps=0.9, n_jobs=-1).fit(reduced_X)
 
         kmeans_labels = clustering.labels_.reshape((rows, cols))
 
@@ -209,7 +220,7 @@ if __name__ == '__main__':
         cb.set_label(label='$labels$', fontsize=10)
         cb.ax.tick_params(labelsize=6)
         cb.ax.set_yticklabels([r'${{{}}}$'.format(val) for val in range(nc)])
-
+        plt.savefig(outdir + name[:-4]+'_segm.png')
 
         ## Performs the segmentation
         # labels = slic(img, n_segments=300, compactness=10.0)
@@ -219,6 +230,41 @@ if __name__ == '__main__':
         # Evaluate metrics
         m = metrics(img_orig, kmeans_labels, segments)
         m.set_metrics()
-        m.display_metrics()
+        # m.display_metrics()
 
-    plt.show()
+        metrics_values = list(m.get_metrics().values())
+        # dict_metrics = m.get_metrics()
+        # dict_metrics.update({'image_name': name[:-4]})
+        img_metrics.append(metrics_values)
+
+
+    img_metrics = np.array(img_metrics)
+    recall_avg = np.mean(img_metrics[:, 1])
+    precision_avg = np.mean(img_metrics[:, 2])
+    underseg_avg = np.mean(img_metrics[:, 3])
+    undersegNP_avg = np.mean(img_metrics[:, 4])
+    compactness_avg = np.mean(img_metrics[:, 5])
+    density_avg = np.mean(img_metrics[:, 6])
+
+    recall_std = np.std(img_metrics[:, 1])
+    precision_std = np.std(img_metrics[:, 2])
+    underseg_std = np.std(img_metrics[:, 3])
+    undersegNP_std = np.std(img_metrics[:, 4])
+    compactness_std = np.std(img_metrics[:, 5])
+    density_std = np.std(img_metrics[:, 6])
+
+    print(" Avg Recall: " + str(recall_avg) + "\n",
+          " Avg Precision: " + str(precision_avg) + "\n",
+          " Avg Undersegmentation (Bergh): " + str(underseg_avg) + "\n",
+          " Avg Undersegmentation (NP): " + str(undersegNP_avg) + "\n",
+          " Avg Compactness: " + str(compactness_avg) + "\n",
+          " Avg Density: " + str(density_avg) + "\n")
+
+    print(" Std Recall: " + str(recall_std) + "\n",
+          " Std Precision: " + str(precision_std) + "\n",
+          " Std Undersegmentation (Bergh): " + str(underseg_std) + "\n",
+          " Std Undersegmentation (NP): " + str(undersegNP_std) + "\n",
+          " Std Compactness: " + str(compactness_std) + "\n",
+          " Std Density: " + str(density_std) + "\n")
+
+    # plt.show()

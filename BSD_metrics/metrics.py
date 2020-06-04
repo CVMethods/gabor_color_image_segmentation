@@ -62,7 +62,7 @@ class metrics:
         The boundary recall is averaged between all manual segmentations.
 
         :param size: size of the square neighborhood considered to compute
-         the boundary recall (dafault: size=5)
+         the boundary recall (default: size=5)
         :type size: int
         """
 
@@ -81,7 +81,7 @@ class metrics:
         The boundary precision is averaged between all manual segmentations.
 
         :param size: size of the square neighborhood considered to compute
-         the boundary recall (dafault: size=5)
+         the boundary recall (default: size=5)
         :type size: int
         """
 
