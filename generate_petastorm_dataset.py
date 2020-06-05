@@ -1,4 +1,3 @@
-
 #  Copyright (c) 2017-2018 Uber Technologies, Inc.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -41,7 +40,8 @@ def row_generator(x):
             'array_4d': np.random.randint(0, 255, dtype=np.uint8, size=(4, 128, 30, 3))}
 
 
-def generate_petastorm_dataset(output_url='file:///tmp/hello_world_dataset'):
+def generate_petastorm_dataset(output_url='file:///home/eric/Phd_projects/gabor_color_image_segmentation/data/hello_world_dataset'):
+    print(output_url)
     rowgroup_size_mb = 256
 
     spark = SparkSession.builder.config('spark.driver.memory', '2g').master('local[2]').getOrCreate()
@@ -51,9 +51,8 @@ def generate_petastorm_dataset(output_url='file:///tmp/hello_world_dataset'):
     # well as save petastorm specific metadata
     rows_count = 10
     with materialize_dataset(spark, output_url, HelloWorldSchema, rowgroup_size_mb):
-
-        rows_rdd = sc.parallelize(range(rows_count))\
-            .map(row_generator)\
+        rows_rdd = sc.parallelize(range(rows_count)) \
+            .map(row_generator) \
             .map(lambda x: dict_to_spark_row(HelloWorldSchema, x))
 
         spark.createDataFrame(rows_rdd, HelloWorldSchema.as_spark_schema()) \

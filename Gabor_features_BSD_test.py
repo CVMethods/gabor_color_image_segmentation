@@ -135,8 +135,7 @@ if __name__ == '__main__':
         ################################## Gabor responses normalization ##################################
 
         g_responses = np.array([g_responses_lum, g_responses_cr, g_responses_ci])
-        g_responses_norm = normalize_img(g_responses, rows,
-                                         cols)  # * (rows*cols) # g_responses / np.sum(np.abs(np.array([g_responses_lum, g_responses_cr, g_responses_ci]))**2)
+        g_responses_norm = normalize_img(g_responses, rows, cols)  # * (rows*cols) # g_responses / np.sum(np.abs(np.array([g_responses_lum, g_responses_cr, g_responses_ci]))**2)
 
         g_responses_lum = g_responses_norm[0]
         g_responses_cr = g_responses_norm[1]
