@@ -30,17 +30,25 @@ from matplotlib import pyplot as plt
 
 np.random.seed(0)
 
-img_names = ['eagle.png', 'example_01.jpg', 'example_02.jpg', 'example_03.jpg', 'example_04.jpg', 'example_05.jpg',
-             'example_06.jpg']
+# img_path = "data/myFavorite_BSDimages/"
+img_path = "data/myFavorite_BSDimages/"
+outdir = 'data/outdir/'
+
+if not os.path.exists(outdir):
+    os.makedirs(outdir)
+
+img_names = sorted(os.listdir(img_path))
+
+# img_names = ['eagle.png', 'example_01.jpg', 'example_02.jpg', 'example_03.jpg', 'example_04.jpg', 'example_05.jpg',
+#              'example_06.jpg']
 clusters = [2, 5, 3, 5, 3, 5, 5]
 
-ss = 1
 datasets = []
 for ii in range(len(img_names)):
-    img = imread('images/' + img_names[ii])
-    xx, yy = img.size
-    img = img.resize((xx // ss, yy // ss))
-    img = np.array(img)[:, :, 0:3]
+    img = imread(img_path + img_names[ii])
+    # xx, yy = img.shape
+    # img = img.resize((xx // ss, yy // ss))
+    # img = np.array(img)[:, :, 0:3]
     yy, xx, zz = img.shape
     X, y, img_size = img.reshape((xx * yy, zz)), None, (yy, xx)
     datasets.append(((X, y, clusters[ii], img_size), {}))
@@ -173,13 +181,14 @@ for i_dataset, (dataset, algo_params) in enumerate(datasets):
         # add black color for outliers (if any)
         colors = np.append(colors, ["#000000"])
 
-        plt.imshow(y_pred.reshape(*img_size))
+        plt.imshow(y_pred.reshape(*img_size), cmap=plt.cm.get_cmap('Set1', params['n_clusters']))
         plt.text(.99, .01, ('%.2fs' % (t1 - t0)).lstrip('0'),
                  transform=plt.gca().transAxes, size=15,
                  horizontalalignment='right')
         plot_num += 1
 
     # plt.show(block=False)
-    plt.savefig(os.path.splitext(img_names[i_dataset])[0] + '_segm.png')
+    # plt.savefig(os.path.splitext(img_names[i_dataset])[0] + '_segm.png')
+    plt.savefig(outdir + img_names[i_dataset][:-4] + '_' + '_segmentation.png')
 
 plt.show()
