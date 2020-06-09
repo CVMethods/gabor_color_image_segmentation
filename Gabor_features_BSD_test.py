@@ -21,8 +21,7 @@ from Gabor_analysis.myGaborFunctions import *
 from complexColor.color_transformations import *
 
 if __name__ == '__main__':
-    # img_path = "data/myFavorite_BSDimages/"
-    img_path = "data/myFavorite_BSDimages/"
+    img_path = "data/myFavorite_BSDimages/dir/"
     outdir = 'data/outdir/'
 
     if not os.path.exists(outdir):
@@ -302,6 +301,7 @@ if __name__ == '__main__':
 
             # Load the ground truth
             segments = get_segment_from_filename(img_name[:-4])
+            pdb.set_trace()
 
             # Evaluate metrics
             m = metrics(img_orig, y_pred, segments)
