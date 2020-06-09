@@ -16,14 +16,17 @@
 using plain Python"""
 
 from petastorm import make_reader
+import pdb
+import matplotlib.pyplot as plt
 
-
-def python_hello_world(dataset_url='file:///home/eric/Phd_projects/gabor_color_image_segmentation/data/hello_world_dataset'):
+def python_hello_world(dataset_url='file:///home/eric/Phd_projects/gabor_color_image_segmentation/data/Berkeley_petastorm_dataset_test'):
     with make_reader(dataset_url) as reader:
         # Pure python
+        ii = 0
         for sample in reader:
-            print(sample.image1)
-            # plt.imshow(sample.image1)
+            print(sample.img_id, sample.subdir)
+            ii += 1
+            print(ii)
 
 
 if __name__ == '__main__':
