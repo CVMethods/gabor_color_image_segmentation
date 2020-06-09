@@ -33,21 +33,26 @@ BSDFeaturesSchema = Unischema('BSDFeaturesSchema', [
     UnischemaField('gabor_feature_array', np.float_, (None, None, 3), NdarrayCodec(), False),
 ])
 
+def get_gabor_features(img_complex, gabor_filters, r_type, gsmooth, opn, selem_size):
 
-def img2_twochannel_colr_complex(img, color_space='HS'):
+    channels, rows, cols = img_complex.shape
+    filter_responses = np.array(Parallel(n_jobs=num_cores, prefer='processes')(
+        delayed(applyGabor_filterbank)(img_channel, gabor_filters, resp_type=r_type, smooth=gsmooth,
+                                       morph_opening=opn, se_z=selem_size) for img_channel in img_complex))
 
-    rows, cols, channels = img.shape
-    lum, chrom_r, chrom_i = img2complex_colorspace(img, color_space)
+    g_responses_norm = normalize_img(filter_responses, rows, cols)
+    # print(np.sum(g_responses_norm**2) / (rows*cols))
 
-    ##################################  Luminance and chrominance normalization ##################################
-    lum = linear_normalization(lum, 255., 0.)
-    chrom_r = linear_normalization2(chrom_r)
-    chrom_i = linear_normalization2(chrom_i)
+    features = []
+    for ff in range(g_responses_norm.shape[1]):
+        features.append(reshape4clustering(g_responses_norm[0][ff], rows, cols))
+        features.append(reshape4clustering(g_responses_norm[1][ff], rows, cols))
+        features.append(reshape4clustering(g_responses_norm[2][ff], rows, cols))
 
-    img_2ch = np.array((lum, chrom_r, chrom_i))
-    img_2ch_norm = normalize_img(img_2ch, rows, cols)
+    features = np.array(features).T
 
-    return img_2ch_norm
+    return features
+
 
 if __name__ == '__main__':
     dataset_url = 'file://' + os.getcwd() + '/data/Berkeley_petastorm_dataset_test'
@@ -55,7 +60,6 @@ if __name__ == '__main__':
 
     if not os.path.exists(outdir):
         os.makedirs(outdir)
-
 
     # Generating Gabor filterbank
     min_period = 2.
@@ -69,55 +73,47 @@ if __name__ == '__main__':
 
     n_freq = len(frequencies)
     n_angles = len(angles)
+
+    color_space = 'HS'
+
+    r_type = 'L2'  # 'real'
+    gsmooth = True
+    opn = True
+    selem_size = 1
+    num_cores = -1
+
+    t0 = time.time()
     with make_reader(dataset_url) as reader:
-        pdb.set_trace()
-        # Pure python
-        ii = 0
+
+        twoChannel_imgs = Parallel(n_jobs=num_cores)(
+            delayed(img2complex_normalized_colorspace)(sample.image, sample.img_shape, color_space) for sample in reader)
+
+        gabor_features = Parallel(n_jobs=-1, prefer='processes')(
+            delayed(get_gabor_features)(img, gabor_filters, r_type, gsmooth, opn, selem_size) for img in twoChannel_imgs)
+        t1 = time.time()
+    print('Computing time using Parallel joblib: %.2fs' % (t1 - t0))
+
+    t0 = time.time()
+    with make_reader(dataset_url) as reader:
+        twoChannel_imgs_v2 = []
+        gabor_features_v2 = []
         for sample in reader:
-            print(sample.img_id, sample.subdir)
-            ii += 1
-            print(ii)
-            rows, cols, channels = sample.image.shape
-            # plt.figure(dpi=180)
-            # plt.imshow(img_orig)
-            # plt.title('Input image', fontsize=10)
-            # plt.axis('off')
+            img_2ch_norm = img2complex_normalized_colorspace(sample.image, sample.img_shape, color_space)
 
-            color_space = 'HS'
-            lum, chrom_r, chrom_i = img2complex_colorspace(sample.image, color_space)
-
-            ##################################  Luminance and chrominance normalization ##################################
-            lum = linear_normalization(lum, 255., 0.)
-            chrom_r = linear_normalization2(chrom_r)
-            chrom_i = linear_normalization2(chrom_i)
-
-            img_2ch = np.array((lum, chrom_r, chrom_i))
-            img_2ch_norm = normalize_img(img_2ch, rows, cols)  # * (rows*cols)
-
+            twoChannel_imgs_v2.append(img_2ch_norm)
+            rows, cols, channels = sample.img_shape
             lum = img_2ch_norm[0]  # normalize_img(lum, rows, cols) #*np.sqrt(rows*cols)
             chrom_r = img_2ch_norm[1]  # normalize_img(chrom.real, rows, cols) #*np.sqrt(rows*cols)
             chrom_i = img_2ch_norm[2]  # normalize_img(chrom.imag, rows, cols) #*np.sqrt(rows*cols)
 
-            # fig, axs = plt.subplots(1, 3, dpi=180)
-            # axs[0].imshow(lum, cmap='gray')
-            # axs[0].set_title('Luminance')
-            # axs[1].imshow(chrom_r, cmap='gray')
-            # axs[1].set_title('Chrominance (real part)')
-            # axs[2].imshow(chrom_i, cmap='gray')
-            # axs[2].set_title('Chrominance (imag part)')
 
-            # print('Sum of the square values of the 2 channel image divided by the n° of pixels: ', np.sum(np.abs(img_2ch_norm) ** 2) / (rows * cols))
 
             ################################## Gabor filtering stage ##################################
 
             ############## Luminance ##############
-            r_type = 'L2'  # 'real'
-            gsmooth = True
-            opn = True
-            selem_size = 1
 
-            g_responses_lum = applyGabor_filterbank(lum, gabor_filters, resp_type=r_type, smooth=gsmooth, morph_opening=opn,
-                                                    se_z=selem_size)
+            g_responses_lum = applyGabor_filterbank(lum, gabor_filters, resp_type=r_type, smooth=gsmooth,
+                                                    morph_opening=opn, se_z=selem_size)
 
             ############## Chrominance real ##############
 
@@ -138,60 +134,6 @@ if __name__ == '__main__':
             g_responses_cr = g_responses_norm[1]
             g_responses_ci = g_responses_norm[2]
 
-            vmax = g_responses_norm.max()
-            vmin = g_responses_norm.min()
-
-            # print('[Min, Max] values among lum, chrom responses after normalization: ', [vmin, vmax])
-
-            ############## Luminance ##############
-            # fig, axes = plt.subplots(n_freq, n_angles, dpi=180)
-            # ff = 0
-            # for ii, f_i in enumerate(frequencies):
-            #     for jj, a_i in enumerate(angles):
-            #         axes[ii, jj].imshow(g_responses_lum[ff], cmap='gray', vmin=vmin, vmax=vmax)  #
-            #         axes[ii, jj].tick_params(axis='both', which='both', bottom=False, left=False, labelbottom=False,
-            #                                  labelleft=False)
-            #         ff += 1
-            # axes[n_freq - 1, np.int(np.ceil(n_angles / 2))].set_xlabel('Orientation   $\\theta_j $   $\\rightarrow$',
-            #                                                            fontsize=10)
-            # axes[np.int(np.ceil(n_freq / 2)), 0].set_ylabel('Frequency   $f_i$   $\\rightarrow$', fontsize=10)
-            # fig.subplots_adjust(top=0.92, bottom=0.08, left=0.10, right=0.95, hspace=0.25, wspace=0.35)
-            # fig.suptitle('Gabor energy of luminance channel', fontsize=10)
-
-            ############## Chrominance real ##############
-            # fig, axes = plt.subplots(n_freq, n_angles, dpi=180)
-            # ff = 0
-            # for ii, f_i in enumerate(frequencies):
-            #     for jj, a_i in enumerate(angles):
-            #         axes[ii, jj].imshow(g_responses_cr[ff], cmap='gray', vmin=vmin, vmax=vmax)  #
-            #         axes[ii, jj].tick_params(axis='both', which='both', bottom=False, left=False, labelbottom=False,
-            #                                  labelleft=False)
-            #         ff += 1
-            # axes[n_freq - 1, np.int(np.ceil(n_angles / 2))].set_xlabel('Orientation   $\\theta_j $   $\\rightarrow$',
-            #                                                            fontsize=10)
-            # axes[np.int(np.ceil(n_freq / 2)), 0].set_ylabel('Frequency   $f_i$   $\\rightarrow$', fontsize=10)
-            # fig.subplots_adjust(top=0.92, bottom=0.08, left=0.10, right=0.95, hspace=0.25, wspace=0.35)
-            # fig.suptitle('Gabor energy of chrominance (real part) channel', fontsize=10)
-
-            ############## Chrominance imag ##############
-            # fig, axes = plt.subplots(n_freq, n_angles, dpi=180)
-            # ff = 0
-            # for ii, f_i in enumerate(frequencies):
-            #     for jj, a_i in enumerate(angles):
-            #         axes[ii, jj].imshow(g_responses_ci[ff], cmap='gray', vmin=vmin, vmax=vmax)  #
-            #         axes[ii, jj].tick_params(axis='both', which='both', bottom=False, left=False, labelbottom=False,
-            #                                  labelleft=False)
-            #         ff += 1
-            # axes[n_freq - 1, np.int(np.ceil(n_angles / 2))].set_xlabel('Orientation   $\\theta_j $   $\\rightarrow$',
-            #                                                            fontsize=10)
-            # axes[np.int(np.ceil(n_freq / 2)), 0].set_ylabel('Frequency   $f_i$   $\\rightarrow$', fontsize=10)
-            # fig.subplots_adjust(top=0.92, bottom=0.08, left=0.10, right=0.95, hspace=0.25, wspace=0.35)
-            # fig.suptitle('Gabor energy of chrominance (imag part) channel', fontsize=10)
-
-            # print('Sum of the square values of the Gabor resp divided by the n° of pixels: ', np.sum(g_responses_norm ** 2) / (rows * cols))
-
-            ################################## Kmeans N°1 ##################################
-
             X = []
             for ff in range(g_responses_lum.shape[0]):
                 X.append(reshape4clustering(g_responses_lum[ff], rows, cols))
@@ -199,10 +141,10 @@ if __name__ == '__main__':
                 X.append(reshape4clustering(g_responses_ci[ff], rows, cols))
 
             X = np.array(X).T
-            print(X.shape)
             # # normalize dataset for easier parameter selection
             # X = StandardScaler().fit_transform(X)
             # X = vq.whiten(X)
-        pdb.set_trace()
 
-
+            gabor_features_v2.append(X)
+    t1 = time.time()
+    print('Computing time using for loop: %.2fs' % (t1 - t0))

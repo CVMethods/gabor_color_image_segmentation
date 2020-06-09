@@ -25,15 +25,10 @@ def python_hello_world(dataset_url='file:///home/eric/Phd_projects/gabor_color_i
         # Pure python
         ii = 0
         for sample in reader:
-            print(sample.img_id, sample.subdir, sample.ground_truth.shape[0], sample.mean_max_min_nseg)
-            ii += 1
-            print(ii)
-            n_gt = sample.ground_truth.shape[0]
-            for truth in sample.ground_truth:
-                print(len(np.unique(truth)))
-            #     plt.figure()
-            #     plt.imshow(sample.ground_truth[ii])
-            # # plt.show()
+            print(sample.img_id, sample.subdir, sample.ground_truth.shape[0], sample.img_shape, sample.mean_max_min_nseg)
+            rows, cols, channels = sample.img_shape
+            print(rows, cols, channels)
+
 
 
 if __name__ == '__main__':

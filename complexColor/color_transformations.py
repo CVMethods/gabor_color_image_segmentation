@@ -92,6 +92,23 @@ def img2complex_colorspace(img, color_space):
 
     return luminance, chrominance_real, chrominance_imag
 
+
+def img2complex_normalized_colorspace(img, img_shape, color_space='HS'):
+
+    rows, cols, channels = img_shape
+    lum, chrom_r, chrom_i = img2complex_colorspace(img, color_space)
+
+    ##################################  Luminance and chrominance normalization ##################################
+    lum = linear_normalization(lum, 255., 0.)
+    chrom_r = linear_normalization2(chrom_r)
+    chrom_i = linear_normalization2(chrom_i)
+
+    img_2ch = np.array((lum, chrom_r, chrom_i))
+    img_2ch_norm = normalize_img(img_2ch, rows, cols)
+
+    return img_2ch_norm
+
+
 def tonemap(img, lum, f, m, a, c):
     lum = lum[..., np.newaxis]
     Cva = np.mean(img, axis=-1)
