@@ -29,8 +29,9 @@ from complexColor.color_transformations import *
 
 BSDFeaturesSchema = Unischema('BSDFeaturesSchema', [
     UnischemaField('img_id', np.string_, (), ScalarCodec(StringType()), False),
-    UnischemaField('complex_image', np.complex_, (None, None, 3), NdarrayCodec(), False),
-    UnischemaField('gabor_feature_array', np.float_, (None, None, 3), NdarrayCodec(), False),
+    UnischemaField('complex_image', np.float32, (3, None, None), NdarrayCodec(), False),
+    UnischemaField('gabor_feature_array', np.float_, (None, None), NdarrayCodec(), False),
+    UnischemaField('mean_max_min_nseg', np.int64, (3,), NdarrayCodec(), False)
 ])
 
 def get_gabor_features(img_complex, gabor_filters, r_type, gsmooth, opn, selem_size):
@@ -53,13 +54,44 @@ def get_gabor_features(img_complex, gabor_filters, r_type, gsmooth, opn, selem_s
 
     return features
 
+def row_generator(img_id, img_complex, features, clusters):
+    return {'img_id': img_id,
+            'complex_image': img_complex,
+            'gabor_feature_array': features,
+            'mean_max_min_nseg': clusters}
+
+
+def bsd_features_to_petastorm_dataset(features_list, output_url, spark_master=None, parquet_files_count=100):
+
+    session_builder = SparkSession \
+        .builder \
+        .appName('BSD Features Dataset Creation') \
+        .config('spark.executor.memory', '10g') \
+        .config('spark.driver.memory', '10g')  # Increase the memory if running locally with high number of executors
+    if spark_master:
+        session_builder.master(spark_master)
+
+    spark = session_builder.getOrCreate()
+    sc = spark.sparkContext
+
+    ROWGROUP_SIZE_MB = 256
+    with materialize_dataset(spark, output_url, BSDFeaturesSchema, ROWGROUP_SIZE_MB):
+
+        # rdd of [(img_id, 'subdir', image), ...] & Convert to pyspark.sql.Row
+        sql_rows_rdd = sc.parallelize(features_list, numSlices=100).map(lambda r: dict_to_spark_row(BSDFeaturesSchema, r))
+
+        # Write out the result
+        spark.createDataFrame(sql_rows_rdd, BSDFeaturesSchema.as_spark_schema()) \
+            .coalesce(parquet_files_count) \
+            .write \
+            .mode('overwrite') \
+            .option('compression', 'none') \
+            .parquet(output_url)
+
 
 if __name__ == '__main__':
     dataset_url = 'file://' + os.getcwd() + '/data/Berkeley_petastorm_dataset_test'
-    outdir = 'data/outdir/features/'
-
-    if not os.path.exists(outdir):
-        os.makedirs(outdir)
+    output_url = 'file://' + os.getcwd() + '/data/BSD_features_petastorm_dataset_test'
 
     # Generating Gabor filterbank
     min_period = 2.
@@ -82,69 +114,90 @@ if __name__ == '__main__':
     selem_size = 1
     num_cores = -1
 
+    # ## Parallel computation of Gabor features
     t0 = time.time()
     with make_reader(dataset_url) as reader:
-
+        # twoChannel_imgs = []
+        # for sample in reader:
+        #     twoChannel_imgs.append(img2complex_normalized_colorspace(sample.image, sample.img_shape, color_space))
         twoChannel_imgs = Parallel(n_jobs=num_cores)(
             delayed(img2complex_normalized_colorspace)(sample.image, sample.img_shape, color_space) for sample in reader)
 
-        gabor_features = Parallel(n_jobs=-1, prefer='processes')(
-            delayed(get_gabor_features)(img, gabor_filters, r_type, gsmooth, opn, selem_size) for img in twoChannel_imgs)
-        t1 = time.time()
+    gabor_features = Parallel(n_jobs=-1, prefer='processes')(
+        delayed(get_gabor_features)(img, gabor_filters, r_type, gsmooth, opn, selem_size) for img in twoChannel_imgs)
+    t1 = time.time()
     print('Computing time using Parallel joblib: %.2fs' % (t1 - t0))
 
-    t0 = time.time()
+    # list of [(img_id, 'complex_img', 'features', 'num_clusters'), ...]
     with make_reader(dataset_url) as reader:
-        twoChannel_imgs_v2 = []
-        gabor_features_v2 = []
-        for sample in reader:
-            img_2ch_norm = img2complex_normalized_colorspace(sample.image, sample.img_shape, color_space)
+        bsd_features_list = Parallel(n_jobs=-1)(
+            delayed(row_generator)(sample.img_id.decode('UTF-8'), twoChannel_imgs[ii], gabor_features[ii], sample.mean_max_min_nseg)
+            for ii, sample in enumerate(reader))
 
-            twoChannel_imgs_v2.append(img_2ch_norm)
-            rows, cols, channels = sample.img_shape
-            lum = img_2ch_norm[0]  # normalize_img(lum, rows, cols) #*np.sqrt(rows*cols)
-            chrom_r = img_2ch_norm[1]  # normalize_img(chrom.real, rows, cols) #*np.sqrt(rows*cols)
-            chrom_i = img_2ch_norm[2]  # normalize_img(chrom.imag, rows, cols) #*np.sqrt(rows*cols)
-
-
-
-            ################################## Gabor filtering stage ##################################
-
-            ############## Luminance ##############
-
-            g_responses_lum = applyGabor_filterbank(lum, gabor_filters, resp_type=r_type, smooth=gsmooth,
-                                                    morph_opening=opn, se_z=selem_size)
-
-            ############## Chrominance real ##############
-
-            g_responses_cr = applyGabor_filterbank(chrom_r, gabor_filters, resp_type=r_type, smooth=gsmooth,
-                                                   morph_opening=opn, se_z=selem_size)
-
-            ############## Chrominance imag ##############
-
-            g_responses_ci = applyGabor_filterbank(chrom_i, gabor_filters, resp_type=r_type, smooth=gsmooth,
-                                                   morph_opening=opn, se_z=selem_size)
-
-            ################################## Gabor responses normalization ##################################
-
-            g_responses = np.array([g_responses_lum, g_responses_cr, g_responses_ci])
-            g_responses_norm = normalize_img(g_responses, rows, cols)  # * (rows*cols) # g_responses / np.sum(np.abs(np.array([g_responses_lum, g_responses_cr, g_responses_ci]))**2)
-
-            g_responses_lum = g_responses_norm[0]
-            g_responses_cr = g_responses_norm[1]
-            g_responses_ci = g_responses_norm[2]
-
-            X = []
-            for ff in range(g_responses_lum.shape[0]):
-                X.append(reshape4clustering(g_responses_lum[ff], rows, cols))
-                X.append(reshape4clustering(g_responses_cr[ff], rows, cols))
-                X.append(reshape4clustering(g_responses_ci[ff], rows, cols))
-
-            X = np.array(X).T
-            # # normalize dataset for easier parameter selection
-            # X = StandardScaler().fit_transform(X)
-            # X = vq.whiten(X)
-
-            gabor_features_v2.append(X)
-    t1 = time.time()
-    print('Computing time using for loop: %.2fs' % (t1 - t0))
+    print(output_url)
+    pdb.set_trace()
+    bsd_features_to_petastorm_dataset(bsd_features_list, output_url)
+    print('done')
+    # img = imread(img_path + img_names[ii])
+    # # xx, yy = img.shape
+    # # img = img.resize((xx // ss, yy // ss))
+    # # img = np.array(img)[:, :, 0:3]
+    # yy, xx, zz = img.shape
+    # X, y, img_size = img.reshape((xx * yy, zz)), None, (yy, xx)
+    # datasets.append(((X, y, clusters[ii], img_size), {}))
+    # # ## Simple for loop computation of Gabor features
+    # t0 = time.time()
+    # with make_reader(dataset_url) as reader:
+    #     twoChannel_imgs_v2 = []
+    #     gabor_features_v2 = []
+    #     for sample in reader:
+    #         img_2ch_norm = img2complex_normalized_colorspace(sample.image, sample.img_shape, color_space)
+    #
+    #         twoChannel_imgs_v2.append(img_2ch_norm)
+    #         rows, cols, channels = sample.img_shape
+    #         lum = img_2ch_norm[0]  # normalize_img(lum, rows, cols) #*np.sqrt(rows*cols)
+    #         chrom_r = img_2ch_norm[1]  # normalize_img(chrom.real, rows, cols) #*np.sqrt(rows*cols)
+    #         chrom_i = img_2ch_norm[2]  # normalize_img(chrom.imag, rows, cols) #*np.sqrt(rows*cols)
+    #
+    #
+    #
+    #         ################################## Gabor filtering stage ##################################
+    #
+    #         ############## Luminance ##############
+    #
+    #         g_responses_lum = applyGabor_filterbank(lum, gabor_filters, resp_type=r_type, smooth=gsmooth,
+    #                                                 morph_opening=opn, se_z=selem_size)
+    #
+    #         ############## Chrominance real ##############
+    #
+    #         g_responses_cr = applyGabor_filterbank(chrom_r, gabor_filters, resp_type=r_type, smooth=gsmooth,
+    #                                                morph_opening=opn, se_z=selem_size)
+    #
+    #         ############## Chrominance imag ##############
+    #
+    #         g_responses_ci = applyGabor_filterbank(chrom_i, gabor_filters, resp_type=r_type, smooth=gsmooth,
+    #                                                morph_opening=opn, se_z=selem_size)
+    #
+    #         ################################## Gabor responses normalization ##################################
+    #
+    #         g_responses = np.array([g_responses_lum, g_responses_cr, g_responses_ci])
+    #         g_responses_norm = normalize_img(g_responses, rows, cols)  # * (rows*cols) # g_responses / np.sum(np.abs(np.array([g_responses_lum, g_responses_cr, g_responses_ci]))**2)
+    #
+    #         g_responses_lum = g_responses_norm[0]
+    #         g_responses_cr = g_responses_norm[1]
+    #         g_responses_ci = g_responses_norm[2]
+    #
+    #         X = []
+    #         for ff in range(g_responses_lum.shape[0]):
+    #             X.append(reshape4clustering(g_responses_lum[ff], rows, cols))
+    #             X.append(reshape4clustering(g_responses_cr[ff], rows, cols))
+    #             X.append(reshape4clustering(g_responses_ci[ff], rows, cols))
+    #
+    #         X = np.array(X).T
+    #         # # normalize dataset for easier parameter selection
+    #         # X = StandardScaler().fit_transform(X)
+    #         # X = vq.whiten(X)
+    #
+    #         gabor_features_v2.append(X)
+    # t1 = time.time()
+    # print('Computing time using for loop: %.2fs' % (t1 - t0))

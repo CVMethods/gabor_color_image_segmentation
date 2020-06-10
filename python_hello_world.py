@@ -20,14 +20,26 @@ from petastorm import make_reader
 import pdb
 import matplotlib.pyplot as plt
 
-def python_hello_world(dataset_url='file:///home/eric/Phd_projects/gabor_color_image_segmentation/data/Berkeley_petastorm_dataset_test'):
+# def python_hello_world(dataset_url='file:///home/eric/Phd_projects/gabor_color_image_segmentation/data/Berkeley_petastorm_dataset_test'):
+#     with make_reader(dataset_url) as reader:
+#         # Pure python
+#         ii = 0
+#         for ii, sample in enumerate(reader):
+#             print(ii, np.string_(sample.img_id), sample.subdir, sample.ground_truth.shape[0], sample.img_shape, sample.mean_max_min_nseg)
+#             rows, cols, channels = sample.img_shape
+#             print(rows, cols, channels)
+#
+#             imag_size = sample.img_shape
+#             pdb.set_trace()
+
+def python_hello_world(dataset_url='file:///home/eric/Phd_projects/gabor_color_image_segmentation/data/BSD_features_petastorm_dataset_test'):
     with make_reader(dataset_url) as reader:
         # Pure python
         ii = 0
-        for sample in reader:
-            print(sample.img_id, sample.subdir, sample.ground_truth.shape[0], sample.img_shape, sample.mean_max_min_nseg)
-            rows, cols, channels = sample.img_shape
-            print(rows, cols, channels)
+        for ii, sample in enumerate(reader):
+            print(ii, sample.img_id.decode('UTF-8'), sample.complex_image[0].shape, sample.gabor_feature_array.shape, sample.mean_max_min_nseg)
+
+        pdb.set_trace()
 
 
 

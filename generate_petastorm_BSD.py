@@ -26,7 +26,7 @@ BSDSchema = Unischema('BSDSchema', [
     UnischemaField('image', np.uint8, (None, None, 3), CompressedImageCodec('jpg'), False),
     UnischemaField('img_shape', np.int64, (None,), NdarrayCodec(), False),
     UnischemaField('ground_truth', np.uint16, (None, None, None), NdarrayCodec(), False),
-    UnischemaField('mean_max_min_nseg', np.int64, (3,), NdarrayCodec(), False),
+    UnischemaField('mean_max_min_nseg', np.int64, (3,), NdarrayCodec(), False)
 ])
 
 
@@ -43,7 +43,7 @@ def get_mean_max_min_num_segments(segments):
     return np.array((mean_nsegments, max_nsegments, min_nsegments))
 
 
-def imagenet_directory_to_petastorm_dataset(bsd_path, output_url, spark_master=None, parquet_files_count=100):
+def bsd_directory_to_petastorm_dataset(bsd_path, output_url, spark_master=None, parquet_files_count=100):
     """Converts a directory with bsd data into a petastorm dataset.
     Expected directory format is:
     >>> val/
@@ -116,4 +116,4 @@ if __name__ == '__main__':
 
     bsd_path = 'data/myFavorite_BSDimages/'
     output_url = 'file://' + os.getcwd() + '/data/Berkeley_petastorm_dataset_test'
-    imagenet_directory_to_petastorm_dataset(bsd_path, output_url)
+    bsd_directory_to_petastorm_dataset(bsd_path, output_url)
