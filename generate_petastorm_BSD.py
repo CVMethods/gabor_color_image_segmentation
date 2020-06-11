@@ -21,6 +21,7 @@ from petastorm.codecs import ScalarCodec, CompressedImageCodec, NdarrayCodec
 from BSD_metrics.groundtruth import *
 
 BSDSchema = Unischema('BSDSchema', [
+    UnischemaField('index', np.int32, (), ScalarCodec(IntegerType()), False),
     UnischemaField('img_id', np.string_, (), ScalarCodec(StringType()), False),
     UnischemaField('subdir', np.string_, (), ScalarCodec(StringType()), False),
     UnischemaField('image', np.uint8, (None, None, 3), CompressedImageCodec('jpg'), False),
@@ -28,6 +29,7 @@ BSDSchema = Unischema('BSDSchema', [
     UnischemaField('ground_truth', np.uint16, (None, None, None), NdarrayCodec(), False),
     UnischemaField('mean_max_min_nseg', np.int64, (3,), NdarrayCodec(), False)
 ])
+
 
 
 def get_mean_max_min_num_segments(segments):
@@ -61,7 +63,7 @@ def bsd_directory_to_petastorm_dataset(bsd_path, output_url, spark_master=None, 
     """
     session_builder = SparkSession \
         .builder \
-        .appName('Berkeley Dataset Creation') \
+        .appName('BSD Features Dataset Creation') \
         .config('spark.executor.memory', '10g') \
         .config('spark.driver.memory', '10g')  # Increase the memory if running locally with high number of executors
     if spark_master:
@@ -73,16 +75,19 @@ def bsd_directory_to_petastorm_dataset(bsd_path, output_url, spark_master=None, 
     # list of [(img_id, 'subdir', path), ...]
     subdirectories = os.listdir(bsd_path)
     berkeley_dataset_list = []
+    index = 0
     for subdir in subdirectories:
         imgs_path = bsd_path + subdir + "/"
         list_imgs = os.listdir(imgs_path)
         for file_name in list_imgs:
+
             groundtruth_segments = np.array(get_segment_from_filename(file_name[:-4]))
             mean_max_min_nsegments = get_mean_max_min_num_segments(groundtruth_segments)
             image = io.imread(imgs_path + file_name)
             img_shape = np.array(image.shape)
-            berkeley_dataset_list.append((file_name[:-4], subdir, image, img_shape, groundtruth_segments,
+            berkeley_dataset_list.append((index, file_name[:-4], subdir, image, img_shape, groundtruth_segments,
                                           mean_max_min_nsegments))
+            index += 1
 
     ROWGROUP_SIZE_MB = 256
     with materialize_dataset(spark, output_url, BSDSchema, ROWGROUP_SIZE_MB):
@@ -90,12 +95,13 @@ def bsd_directory_to_petastorm_dataset(bsd_path, output_url, spark_master=None, 
         # rdd of [(img_id, 'subdir', image), ...]
         berkeley_dataset_rdd = sc.parallelize(berkeley_dataset_list) \
             .map(lambda id_image_list:
-                 {BSDSchema.img_id.name: id_image_list[0],
-                  BSDSchema.subdir.name: id_image_list[1],
-                  BSDSchema.image.name: id_image_list[2],
-                  BSDSchema.img_shape.name: id_image_list[3],
-                  BSDSchema.ground_truth.name: id_image_list[4],
-                  BSDSchema.mean_max_min_nseg.name: id_image_list[5]
+                 {BSDSchema.index.name: id_image_list[0],
+                  BSDSchema.img_id.name: id_image_list[1],
+                  BSDSchema.subdir.name: id_image_list[2],
+                  BSDSchema.image.name: id_image_list[3],
+                  BSDSchema.img_shape.name: id_image_list[4],
+                  BSDSchema.ground_truth.name: id_image_list[5],
+                  BSDSchema.mean_max_min_nseg.name: id_image_list[6]
                   })
 
         # Convert to pyspark.sql.Row
@@ -107,13 +113,13 @@ def bsd_directory_to_petastorm_dataset(bsd_path, output_url, spark_master=None, 
             .write \
             .mode('overwrite') \
             .option('compression', 'none') \
-            .parquet(output_url)
+            .parquet(output_url)  # , partitionBy='img_id'
 
 
 if __name__ == '__main__':
     # bsd_path = 'data/Berkeley/'
-    # output_url = 'file://' + os.getcwd() + '/data/Berkeley_petastorm_dataset'
+    # output_url = 'file://' + os.getcwd() + '/data/petastorm_datasets/Berkeley_images'
 
     bsd_path = 'data/myFavorite_BSDimages/'
-    output_url = 'file://' + os.getcwd() + '/data/Berkeley_petastorm_dataset_test'
+    output_url = 'file://' + os.getcwd() + '/data/petastorm_datasets/test/Berkeley_images'
     bsd_directory_to_petastorm_dataset(bsd_path, output_url)

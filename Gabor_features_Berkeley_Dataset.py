@@ -6,6 +6,7 @@ import time, warnings, pdb, os
 import numpy as np
 import matplotlib.pyplot as plt
 from mpl_toolkits.axes_grid1 import make_axes_locatable
+from pyarrow.parquet import ParquetDataset
 
 from sklearn import cluster, datasets, mixture
 from sklearn.neighbors import kneighbors_graph
@@ -27,11 +28,17 @@ from BSD_metrics.metrics import *
 from Gabor_analysis.myGaborFunctions import *
 from complexColor.color_transformations import *
 
+
 BSDFeaturesSchema = Unischema('BSDFeaturesSchema', [
+    UnischemaField('index', np.int32, (), ScalarCodec(IntegerType()), False),
     UnischemaField('img_id', np.string_, (), ScalarCodec(StringType()), False),
+    UnischemaField('subdir', np.string_, (), ScalarCodec(StringType()), False),
+    UnischemaField('image', np.uint8, (None, None, 3), CompressedImageCodec('jpg'), False),
+    UnischemaField('img_shape', np.int64, (None,), NdarrayCodec(), False),
+    UnischemaField('ground_truth', np.uint16, (None, None, None), NdarrayCodec(), False),
+    UnischemaField('mean_max_min_nseg', np.int64, (3,), NdarrayCodec(), False),
     UnischemaField('complex_image', np.float32, (3, None, None), NdarrayCodec(), False),
-    UnischemaField('gabor_feature_array', np.float_, (None, None), NdarrayCodec(), False),
-    UnischemaField('mean_max_min_nseg', np.int64, (3,), NdarrayCodec(), False)
+    UnischemaField('gabor_features', np.float_, (None, None), NdarrayCodec(), False)
 ])
 
 def get_gabor_features(img_complex, gabor_filters, r_type, gsmooth, opn, selem_size):
@@ -54,11 +61,18 @@ def get_gabor_features(img_complex, gabor_filters, r_type, gsmooth, opn, selem_s
 
     return features
 
-def row_generator(img_id, img_complex, features, clusters):
-    return {'img_id': img_id,
+
+def row_generator(indx, im_id, subdir, img,  shape, truth, nsegs, img_complex, features):
+    return {'index': indx,
+            'img_id': im_id,
+            'subdir': subdir,
+            'image': img,
+            'img_shape': shape,
+            'ground_truth': truth,
+            'mean_max_min_nseg': nsegs,
             'complex_image': img_complex,
-            'gabor_feature_array': features,
-            'mean_max_min_nseg': clusters}
+            'gabor_features': features
+            }
 
 
 def bsd_features_to_petastorm_dataset(features_list, output_url, spark_master=None, parquet_files_count=100):
@@ -86,12 +100,18 @@ def bsd_features_to_petastorm_dataset(features_list, output_url, spark_master=No
             .write \
             .mode('overwrite') \
             .option('compression', 'none') \
-            .parquet(output_url)
+            .parquet(output_url)   # , partitionBy='img_id'
+
+
+
 
 
 if __name__ == '__main__':
-    dataset_url = 'file://' + os.getcwd() + '/data/Berkeley_petastorm_dataset_test'
-    output_url = 'file://' + os.getcwd() + '/data/BSD_features_petastorm_dataset_test'
+    dataset_path = 'data/petastorm_datasets/test/Berkeley_images'
+    output_path = 'data/petastorm_datasets/test/Berkeley_GaborFeatures'
+    dataset_url = 'file://' + os.getcwd() + '/data/petastorm_datasets/test/Berkeley_images'
+    output_url = 'file://' + os.getcwd() + '/data/petastorm_datasets/test/Berkeley_GaborFeatures'
+    # output_url = 'file://' + os.getcwd() + '/data/BSD_features_petastorm_dataset_test'
 
     # Generating Gabor filterbank
     min_period = 2.
@@ -114,30 +134,68 @@ if __name__ == '__main__':
     selem_size = 1
     num_cores = -1
 
+    # dataset_schema_headers = list(ParquetDataset(dataset_path).read_pandas().to_pandas())
+    # for header in dataset_schema_headers:
+    #     exec("%s = []" % header)
+
+    indices = []
+    img_ids = []
+    subdirs = []
+    images = []
+    img_shapes = []
+    ground_truths = []
+    mean_max_min_nsegs = []
+
+    with make_reader(dataset_url) as reader:
+        for sample in reader:
+            indices.append(sample.index)
+            img_ids.append(sample.img_id.decode('UTF-8'))
+            subdirs.append(sample.subdir.decode('UTF-8'))
+            images.append(sample.image)
+            img_shapes.append(sample.img_shape)
+            ground_truths.append(sample.ground_truth)
+            mean_max_min_nsegs.append(sample.mean_max_min_nseg)
+
+
+
     # ## Parallel computation of Gabor features
     t0 = time.time()
-    with make_reader(dataset_url) as reader:
-        # twoChannel_imgs = []
-        # for sample in reader:
-        #     twoChannel_imgs.append(img2complex_normalized_colorspace(sample.image, sample.img_shape, color_space))
-        twoChannel_imgs = Parallel(n_jobs=num_cores)(
-            delayed(img2complex_normalized_colorspace)(sample.image, sample.img_shape, color_space) for sample in reader)
 
-    gabor_features = Parallel(n_jobs=-1, prefer='processes')(
+    twoChannel_imgs = Parallel(n_jobs=num_cores)(
+        delayed(img2complex_normalized_colorspace)(img, shape, color_space) for img, shape in zip(images, img_shapes))
+
+    gabor_features = Parallel(n_jobs=num_cores, prefer='processes')(
         delayed(get_gabor_features)(img, gabor_filters, r_type, gsmooth, opn, selem_size) for img in twoChannel_imgs)
     t1 = time.time()
     print('Computing time using Parallel joblib: %.2fs' % (t1 - t0))
 
-    # list of [(img_id, 'complex_img', 'features', 'num_clusters'), ...]
-    with make_reader(dataset_url) as reader:
-        bsd_features_list = Parallel(n_jobs=-1)(
-            delayed(row_generator)(sample.img_id.decode('UTF-8'), twoChannel_imgs[ii], gabor_features[ii], sample.mean_max_min_nseg)
-            for ii, sample in enumerate(reader))
+    iterator = zip(indices, img_ids, subdirs, images, img_shapes, ground_truths, mean_max_min_nsegs, twoChannel_imgs, gabor_features)
+    bsd_features_list = Parallel(n_jobs=num_cores)(delayed(row_generator)(indx, im_id, subdir, img,  shape, truth, nsegs, img_complex, features) for indx, im_id, subdir, img,  shape, truth, nsegs, img_complex, features in iterator)
 
-    print(output_url)
-    pdb.set_trace()
     bsd_features_to_petastorm_dataset(bsd_features_list, output_url)
-    print('done')
+    print('BSD Features Dataset Done!')
+    #     # dataset_values_list = Parallel(n_jobs=num_cores)(delayed(petastorm2list)(sample, dataset_schema_headers) for sample in reader)
+    # # ## Parallel computation of Gabor features
+    # t0 = time.time()
+    # with make_reader(dataset_url) as reader:
+    #
+    #     twoChannel_imgs = Parallel(n_jobs=num_cores)(
+    #         delayed(img2complex_normalized_colorspace)(sample.image, sample.img_shape, color_space) for sample in reader)
+    #
+    # gabor_features = Parallel(n_jobs=num_cores, prefer='processes')(
+    #     delayed(get_gabor_features)(img, gabor_filters, r_type, gsmooth, opn, selem_size) for img in twoChannel_imgs)
+    # t1 = time.time()
+    # print('Computing time using Parallel joblib: %.2fs' % (t1 - t0))
+    # # list of [(img_id, 'complex_img', 'features', 'num_clusters'), ...]
+    # with make_reader(dataset_url) as reader:
+    #     bsd_features_list = Parallel(n_jobs=num_cores)(
+    #         delayed(row_generator)(sample.img_id.decode('UTF-8'), twoChannel_imgs[ii], gabor_features[ii], sample.mean_max_min_nseg)
+    #         for ii, sample in enumerate(reader))
+    #
+    #
+
+
+
     # img = imread(img_path + img_names[ii])
     # # xx, yy = img.shape
     # # img = img.resize((xx // ss, yy // ss))
