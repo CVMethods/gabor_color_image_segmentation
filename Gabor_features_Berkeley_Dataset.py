@@ -30,13 +30,12 @@ from complexColor.color_transformations import *
 
 
 BSDFeaturesSchema = Unischema('BSDFeaturesSchema', [
-    UnischemaField('index', np.int32, (), ScalarCodec(IntegerType()), False),
     UnischemaField('img_id', np.string_, (), ScalarCodec(StringType()), False),
     UnischemaField('subdir', np.string_, (), ScalarCodec(StringType()), False),
     UnischemaField('image', np.uint8, (None, None, 3), CompressedImageCodec('jpg'), False),
     UnischemaField('img_shape', np.int64, (None,), NdarrayCodec(), False),
     UnischemaField('ground_truth', np.uint16, (None, None, None), NdarrayCodec(), False),
-    UnischemaField('mean_max_min_nseg', np.int64, (3,), NdarrayCodec(), False),
+    UnischemaField('num_seg', np.int64, (4,), NdarrayCodec(), False),
     UnischemaField('complex_image', np.float32, (3, None, None), NdarrayCodec(), False),
     UnischemaField('gabor_features', np.float_, (None, None), NdarrayCodec(), False)
 ])
@@ -62,14 +61,13 @@ def get_gabor_features(img_complex, gabor_filters, r_type, gsmooth, opn, selem_s
     return features
 
 
-def row_generator(indx, im_id, subdir, img,  shape, truth, nsegs, img_complex, features):
-    return {'index': indx,
-            'img_id': im_id,
+def row_generator(im_id, subdir, img,  shape, truth, nsegs, img_complex, features):
+    return {'img_id': im_id,
             'subdir': subdir,
             'image': img,
             'img_shape': shape,
             'ground_truth': truth,
-            'mean_max_min_nseg': nsegs,
+            'num_seg': nsegs,
             'complex_image': img_complex,
             'gabor_features': features
             }
@@ -87,7 +85,7 @@ def bsd_features_to_petastorm_dataset(features_list, output_url, spark_master=No
 
     spark = session_builder.getOrCreate()
     sc = spark.sparkContext
-
+    print('\nSaving Gabor features in petastorm data set')
     ROWGROUP_SIZE_MB = 256
     with materialize_dataset(spark, output_url, BSDFeaturesSchema, ROWGROUP_SIZE_MB):
 
@@ -110,6 +108,7 @@ if __name__ == '__main__':
     output_url = 'file://' + os.getcwd() + '/data/petastorm_datasets/test/Berkeley_GaborFeatures'
     # output_url = 'file://' + os.getcwd() + '/data/BSD_features_petastorm_dataset_test'
 
+
     # Generating Gabor filterbank
     min_period = 2.
     max_period = 35.
@@ -118,6 +117,7 @@ if __name__ == '__main__':
     c1 = 0.9
     c2 = 0.7
     stds = 3.5
+    print('Generating Gabor filterbank')
     gabor_filters, frequencies, angles = makeGabor_filterbank(min_period, max_period, fb, ab, c1, c2, stds)
 
     n_freq = len(frequencies)
@@ -141,36 +141,34 @@ if __name__ == '__main__':
     images = []
     img_shapes = []
     ground_truths = []
-    mean_max_min_nsegs = []
+    num_segments = []
 
+    print('Reading Berkeley image data set')
     with make_reader(dataset_url) as reader:
         for sample in reader:
-            indices.append(sample.index)
             img_ids.append(sample.img_id.decode('UTF-8'))
             subdirs.append(sample.subdir.decode('UTF-8'))
             images.append(sample.image)
             img_shapes.append(sample.img_shape)
             ground_truths.append(sample.ground_truth)
-            mean_max_min_nsegs.append(sample.mean_max_min_nseg)
-
-
+            num_segments.append(sample.num_seg)
 
     # ## Parallel computation of Gabor features
+    print('Computing Gabor features:')
     t0 = time.time()
-
     twoChannel_imgs = Parallel(n_jobs=num_cores)(
         delayed(img2complex_normalized_colorspace)(img, shape, color_space) for img, shape in zip(images, img_shapes))
 
     gabor_features = Parallel(n_jobs=num_cores, prefer='processes')(
         delayed(get_gabor_features)(img, gabor_filters, r_type, gsmooth, opn, selem_size) for img in twoChannel_imgs)
     t1 = time.time()
-    print('Computing time using Parallel joblib: %.2fs' % (t1 - t0))
+    print('Features computing time (using Parallel joblib): %.2fs' % (t1 - t0))
 
-    iterator = zip(indices, img_ids, subdirs, images, img_shapes, ground_truths, mean_max_min_nsegs, twoChannel_imgs, gabor_features)
-    bsd_features_list = Parallel(n_jobs=num_cores)(delayed(row_generator)(indx, im_id, subdir, img,  shape, truth, nsegs, img_complex, features) for indx, im_id, subdir, img,  shape, truth, nsegs, img_complex, features in iterator)
+    iterator = zip(img_ids, subdirs, images, img_shapes, ground_truths, num_segments, twoChannel_imgs, gabor_features)
+    bsd_features_list = Parallel(n_jobs=num_cores)(delayed(row_generator)(im_id, subdir, img,  shape, truth, nsegs, img_complex, features) for im_id, subdir, img,  shape, truth, nsegs, img_complex, features in iterator)
 
     bsd_features_to_petastorm_dataset(bsd_features_list, output_url)
-    print('BSD Features Dataset Done!')
+    print('Berkeley Gabor features data set DONE!')
     #     # dataset_values_list = Parallel(n_jobs=num_cores)(delayed(petastorm2list)(sample, dataset_schema_headers) for sample in reader)
     # # ## Parallel computation of Gabor features
     # t0 = time.time()

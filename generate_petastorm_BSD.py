@@ -11,6 +11,8 @@ import os
 import pdb
 import numpy as np
 
+from scipy.stats import hmean
+
 from skimage import io
 from pyspark.sql import SparkSession
 from pyspark.sql.types import IntegerType, StringType
@@ -21,28 +23,22 @@ from petastorm.codecs import ScalarCodec, CompressedImageCodec, NdarrayCodec
 from BSD_metrics.groundtruth import *
 
 BSDSchema = Unischema('BSDSchema', [
-    UnischemaField('index', np.int32, (), ScalarCodec(IntegerType()), False),
     UnischemaField('img_id', np.string_, (), ScalarCodec(StringType()), False),
     UnischemaField('subdir', np.string_, (), ScalarCodec(StringType()), False),
     UnischemaField('image', np.uint8, (None, None, 3), CompressedImageCodec('jpg'), False),
     UnischemaField('img_shape', np.int64, (None,), NdarrayCodec(), False),
     UnischemaField('ground_truth', np.uint16, (None, None, None), NdarrayCodec(), False),
-    UnischemaField('mean_max_min_nseg', np.int64, (3,), NdarrayCodec(), False)
+    UnischemaField('num_seg', np.int64, (4,), NdarrayCodec(), False)
 ])
 
 
-
-def get_mean_max_min_num_segments(segments):
+def get_num_segments(segments):
     n_labels = []
     for truth in segments:
         n_labels.append(len(np.unique(truth)))
     n_labels = np.array(n_labels)
 
-    mean_nsegments = n_labels.sum() // segments.shape[0]
-    max_nsegments = n_labels.max()
-    min_nsegments = n_labels.min()
-
-    return np.array((mean_nsegments, max_nsegments, min_nsegments))
+    return np.array((n_labels.max(), n_labels.min(), int(n_labels.mean()), int(hmean(n_labels))))
 
 
 def bsd_directory_to_petastorm_dataset(bsd_path, output_url, spark_master=None, parquet_files_count=100):
@@ -75,19 +71,16 @@ def bsd_directory_to_petastorm_dataset(bsd_path, output_url, spark_master=None, 
     # list of [(img_id, 'subdir', path), ...]
     subdirectories = os.listdir(bsd_path)
     berkeley_dataset_list = []
-    index = 0
     for subdir in subdirectories:
         imgs_path = bsd_path + subdir + "/"
         list_imgs = os.listdir(imgs_path)
         for file_name in list_imgs:
-
             groundtruth_segments = np.array(get_segment_from_filename(file_name[:-4]))
-            mean_max_min_nsegments = get_mean_max_min_num_segments(groundtruth_segments)
+            n_segments = get_num_segments(groundtruth_segments)
             image = io.imread(imgs_path + file_name)
             img_shape = np.array(image.shape)
-            berkeley_dataset_list.append((index, file_name[:-4], subdir, image, img_shape, groundtruth_segments,
-                                          mean_max_min_nsegments))
-            index += 1
+            berkeley_dataset_list.append((file_name[:-4], subdir, image, img_shape, groundtruth_segments,
+                                          n_segments))
 
     ROWGROUP_SIZE_MB = 256
     with materialize_dataset(spark, output_url, BSDSchema, ROWGROUP_SIZE_MB):
@@ -95,13 +88,12 @@ def bsd_directory_to_petastorm_dataset(bsd_path, output_url, spark_master=None, 
         # rdd of [(img_id, 'subdir', image), ...]
         berkeley_dataset_rdd = sc.parallelize(berkeley_dataset_list) \
             .map(lambda id_image_list:
-                 {BSDSchema.index.name: id_image_list[0],
-                  BSDSchema.img_id.name: id_image_list[1],
-                  BSDSchema.subdir.name: id_image_list[2],
-                  BSDSchema.image.name: id_image_list[3],
-                  BSDSchema.img_shape.name: id_image_list[4],
-                  BSDSchema.ground_truth.name: id_image_list[5],
-                  BSDSchema.mean_max_min_nseg.name: id_image_list[6]
+                 {BSDSchema.img_id.name: id_image_list[0],
+                  BSDSchema.subdir.name: id_image_list[1],
+                  BSDSchema.image.name: id_image_list[2],
+                  BSDSchema.img_shape.name: id_image_list[3],
+                  BSDSchema.ground_truth.name: id_image_list[4],
+                  BSDSchema.num_seg.name: id_image_list[5]
                   })
 
         # Convert to pyspark.sql.Row
