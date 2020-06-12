@@ -9,6 +9,7 @@ Il n'y a que deux algorithmes assez rapide pour marcher sur les pixels. Cependan
 
 Pour certain, il faut spécifier le nombre de clusters.
 """
+from joblib import Parallel, delayed
 from scipy.cluster import vq
 from sklearn.decomposition import PCA
 
@@ -34,74 +35,26 @@ from PIL import Image
 from matplotlib import pyplot as plt
 from BSD_metrics.metrics import *
 
-np.random.seed(0)
 
-# img_path = "data/myFavorite_BSDimages/"
-dataset_url = 'file://' + os.getcwd() + '/data/petastorm_datasets/test/Berkeley_GaborFeatures'
-outdir = 'data/outdir/'
-
-if not os.path.exists(outdir):
-    os.makedirs(outdir)
-
-indices = []
-img_ids = []
-subdirs = []
-images = []
-img_shapes = []
-ground_truths = []
-mean_max_min_nsegs = []
-img_complex = []
-gabor_features = []
-
-datasets = []
-with make_reader(dataset_url) as reader:
-    for sample in reader:
-        # indices.append(sample.index)
-        img_ids.append(sample.img_id.decode('UTF-8'))
-        # subdirs.append(sample.subdir.decode('UTF-8'))
-        # images.append(sample.image)
-        # img_shapes.append(sample.img_shape)
-        # ground_truths.append(sample.ground_truth)
-        # mean_max_min_nsegs.append(sample.mean_max_min_nseg)
-        # img_complex.append(sample.complex_image)
-        # gabor_features.append(sample.gabor_features)
-        datasets.append(((sample.gabor_features, sample.ground_truth, sample.mean_max_min_nseg, sample.img_shape), {}))
-
-default_base = {'quantile': .3,
-                    'eps': .3,
-                    'damping': .9,
-                    'preference': -200,
-                    'n_neighbors': 10,
-                    'n_clusters': 2,
-                    'min_samples': 20,
-                    'xi': 0.05,
-                    'min_cluster_size': 0.1,
-                    'n_jobs': -1}
-
-# datasets = [
-#     (noisy_circles, {'damping': .77, 'preference': -240,
-#                      'quantile': .2, 'n_clusters': 2,
-#                      'min_samples': 20, 'xi': 0.25}),
-#     (noisy_moons, {'damping': .75, 'preference': -220, 'n_clusters': 2}),
-#     (varied, {'eps': .18, 'n_neighbors': 2,
-#               'min_samples': 5, 'xi': 0.035, 'min_cluster_size': .2}),
-#     (aniso, {'eps': .15, 'n_neighbors': 2,
-#              'min_samples': 20, 'xi': 0.1, 'min_cluster_size': .2}),
-#     (blobs, {}),
-#     (no_structure, {})]
-for i_dataset, (dataset, algo_params) in enumerate(datasets):
-
+def clustering_segmentation_and_metrics(dataset, algo_params):
     # update parameters with dataset-specific values
     params = default_base.copy()
     params.update(algo_params)
 
-    print('dataset %d' % i_dataset, img_ids[i_dataset])
+    img_id, X, y, n_clusters, img_size = dataset
 
-    X, y, n_clusters, img_size = dataset
-    img_size = img_size[:-1]
-    params['n_clusters'] = int(n_clusters[0])
+    print('dataset:', img_id)
 
-    print(img_size, params['n_clusters'])
+    # img_size = img_size[:-1]
+    rows, cols, channels = img_size
+    params['n_clusters'] = int(n_clusters[1])
+    # print(rows, cols, params['n_clusters'])
+
+    # Add pixel's position to features to include locality
+    pixels = np.arange(rows * cols)
+    nodes = pixels.reshape((rows, cols))
+    yy, xx = np.where(nodes >= 0)
+    X = np.column_stack((X, yy, xx))
 
     # # normalize dataset for easier parameter selection
     # X = StandardScaler().fit_transform(X)
@@ -110,12 +63,6 @@ for i_dataset, (dataset, algo_params) in enumerate(datasets):
     # Reduce data dimensionality (if needed for faster clustering computation)
     pca = PCA(n_components=4)
     X = pca.fit_transform(X)
-
-    # # Add pixel's position to features to include locality
-    # pixels = np.arange(rows * cols)
-    # nodes = pixels.reshape((rows, cols))
-    # yy, xx = np.where(nodes >= 0)
-    # X = np.column_stack((X, yy, xx))
 
     # # estimate bandwidth for mean shift
     # bandwidth = cluster.estimate_bandwidth(X, quantile=params['quantile'])
@@ -166,7 +113,7 @@ for i_dataset, (dataset, algo_params) in enumerate(datasets):
         ('Birch', birch),
         ('GaussianMixture', gmm)  # commented out since too long on big images
     )
-
+    segmentations = []
     img_metrics = []
     for algo_name, algorithm in clustering_algorithms:
         t0 = time.time()
@@ -196,38 +143,71 @@ for i_dataset, (dataset, algo_params) in enumerate(datasets):
             y_pred = algorithm.predict(X)
 
         nc = len(np.unique(y_pred))
-        y_pred = y_pred.reshape(img_size)
-
-        # Load the ground truth
-        segments = y  # get_segment_from_filename(img_name[:-4])
-        # pdb.set_trace()
+        y_pred = y_pred.reshape((rows, cols))
 
         # Evaluate metrics
-        m = metrics(None, y_pred, segments)
+        m = metrics(None, y_pred, y)
         m.set_metrics()
-        m.display_metrics()
+        # m.display_metrics()
 
         metrics_values = m.get_metrics()
-        # metrics_values = list(m.get_metrics().values())
-        # dict_metrics = m.get_metrics()
-        # dict_metrics.update({'image_name': name[:-4]})
-        # img_metrics.append(metrics_values)
 
-        fig = plt.figure(dpi=180)
-        ax = plt.gca()
-        im = ax.imshow(y_pred, cmap=plt.cm.get_cmap('jet', nc))
-        ax.tick_params(axis='both', which='both', labelsize=7, pad=0.1,
-                       length=2)  # , bottom=False, left=False, labelbottom=False, labelleft=False
-        ax.set_title(algo_name + ' k=%d' % nc, fontsize=10)
-        ax.set_xlabel(('Recall: %.3f, Precision: %.3f, Time: %.2fs' % (
-        metrics_values['recall'], metrics_values['precision'], (t1 - t0))).lstrip('0'), fontsize=10)
+        # plt.figure(dpi=180)
+        # ax = plt.gca()
+        # im = ax.imshow(y_pred, cmap=plt.cm.get_cmap('jet', nc))
+        # ax.tick_params(axis='both', which='both', labelsize=7, pad=0.1,
+        #                length=2)  # , bottom=False, left=False, labelbottom=False, labelleft=False
+        # ax.set_title(algo_name + ' k=%d' % nc, fontsize=10)
+        # ax.set_xlabel(('Recall: %.3f, Precision: %.3f, Time: %.2fs' % (
+        #     metrics_values['recall'], metrics_values['precision'], (t1 - t0))).lstrip('0'), fontsize=10)
+        #
+        # divider = make_axes_locatable(ax)
+        # cax = divider.append_axes("right", size="5%", pad=0.1)
+        # cb = plt.colorbar(im, cax=cax, ticks=(np.arange(nc) + 0.5) * (nc - 1) / nc)
+        # cb.set_label(label='$labels$', fontsize=10)
+        # cb.ax.tick_params(labelsize=6)
+        # cb.ax.set_yticklabels([r'${{{}}}$'.format(val) for val in range(nc)])
+        # plt.savefig(outdir + img_id + '_' + algo_name + '_segm.png')
+        # plt.clf()
+        # plt.cla()
 
-        divider = make_axes_locatable(ax)
-        cax = divider.append_axes("right", size="5%", pad=0.1)
-        cb = plt.colorbar(im, cax=cax, ticks=(np.arange(nc) + 0.5) * (nc - 1) / nc)
-        cb.set_label(label='$labels$', fontsize=10)
-        cb.ax.tick_params(labelsize=6)
-        cb.ax.set_yticklabels([r'${{{}}}$'.format(val) for val in range(nc)])
-        plt.savefig(outdir + img_ids[i_dataset] + '_' + algo_name + '_segm.png')
+        img_metrics.append(metrics_values)
+        segmentations.append(y_pred)
 
-# plt.show()
+    return segmentations, img_metrics
+
+
+if __name__ == '__main__':
+
+    np.random.seed(0)
+
+    # img_path = "data/myFavorite_BSDimages/"
+    dataset_url = 'file://' + os.getcwd() + '/data/petastorm_datasets/test/Berkeley_GaborFeatures'
+    outdir = 'data/outdir/'
+
+    if not os.path.exists(outdir):
+        os.makedirs(outdir)
+
+    datasets = []
+    with make_reader(dataset_url) as reader:
+        for sample in reader:
+            datasets.append(((sample.img_id.decode('UTF-8'), sample.gabor_features, sample.ground_truth, sample.mean_max_min_nseg, sample.img_shape), {}))
+
+    default_base = {'quantile': .3,
+                        'eps': .3,
+                        'damping': .9,
+                        'preference': -200,
+                        'n_neighbors': 10,
+                        'n_clusters': 10,
+                        'min_samples': 20,
+                        'xi': 0.05,
+                        'min_cluster_size': 0.1,
+                        'n_jobs': -1}
+
+    num_cores = -1
+    segmentation_metrics = Parallel(n_jobs=num_cores, prefer='processes')(
+        delayed(clustering_segmentation_and_metrics)(dataset, algo_params) for dataset, algo_params in datasets)
+
+
+    pdb.set_trace()
+    # plt.show()
