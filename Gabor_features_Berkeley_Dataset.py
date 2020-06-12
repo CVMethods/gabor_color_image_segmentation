@@ -103,9 +103,6 @@ def bsd_features_to_petastorm_dataset(features_list, output_url, spark_master=No
             .parquet(output_url)   # , partitionBy='img_id'
 
 
-
-
-
 if __name__ == '__main__':
     dataset_path = 'data/petastorm_datasets/test/Berkeley_images'
     output_path = 'data/petastorm_datasets/test/Berkeley_GaborFeatures'

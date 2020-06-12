@@ -30,7 +30,7 @@ def read_dataset_python(dataset_url):
     with make_reader(dataset_url) as reader:
         # Pure python
         for ii, sample in enumerate(reader):
-            print(sample)
+            print(sample.img_id, sample.mean_max_min_nseg)
         print('\n')
 
 
@@ -66,9 +66,9 @@ if __name__ == '__main__':
     dataset_images_url ='file://' + os.getcwd() + '/data/petastorm_datasets/test/Berkeley_images'
     dataset_features_url ='file://' + os.getcwd() + '/data/petastorm_datasets/test/Berkeley_GaborFeatures'
 
-    read_dataset_python(dataset_images_url)
+    # read_dataset_python(dataset_images_url)
     read_dataset_python(dataset_features_url)
 
-    read_dataset_pyspark(dataset_images_url)
-    read_dataset_pyspark(dataset_features_url)
+    # read_dataset_pyspark(dataset_images_url)
+    # read_dataset_pyspark(dataset_features_url)
 
