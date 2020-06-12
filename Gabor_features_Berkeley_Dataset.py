@@ -122,7 +122,7 @@ if __name__ == '__main__':
 
     n_freq = len(frequencies)
     n_angles = len(angles)
-
+    output_url += '_%dfreq_%dang' % (n_freq, n_angles)
     color_space = 'HS'
 
     r_type = 'L2'  # 'real'
