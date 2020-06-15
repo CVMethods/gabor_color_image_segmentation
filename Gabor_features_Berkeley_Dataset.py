@@ -112,8 +112,8 @@ if __name__ == '__main__':
     # Generating Gabor filterbank
     min_period = 2.
     max_period = 35.
-    fb = 0.7
-    ab = 30
+    fb = 1
+    ab = 45
     c1 = 0.9
     c2 = 0.7
     stds = 3.5
