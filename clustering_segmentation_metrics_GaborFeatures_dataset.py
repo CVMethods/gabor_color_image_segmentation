@@ -36,7 +36,7 @@ from matplotlib import pyplot as plt
 from BSD_metrics.metrics import *
 
 
-def clustering_segmentation_and_metrics(dataset, algo_params, num_clusters):
+def clustering_segmentation_and_metrics(i_dataset, dataset, algo_params, num_clusters):
     # update parameters with dataset-specific values
     params = default_base.copy()
     params.update(algo_params)
@@ -175,7 +175,7 @@ def clustering_segmentation_and_metrics(dataset, algo_params, num_clusters):
         cb.set_label(label='$labels$', fontsize=10)
         cb.ax.tick_params(labelsize=6)
         cb.ax.set_yticklabels([r'${{{}}}$'.format(val) for val in range(nc)])
-        plt.savefig(outdir + img_id + '_' + algo_name + '_' + num_clusters + '_segm.png')
+        plt.savefig(outdir + '%02d' % i_dataset + '_' + img_id + '_' + algo_name + '_' + num_clusters + '_segm.png')
 
         plt.close('all')
 
@@ -190,7 +190,7 @@ if __name__ == '__main__':
 
     np.random.seed(0)
 
-    dataset_url = 'file://' + os.getcwd() + '/data/petastorm_datasets/test/Berkeley_GaborFeatures_5freq_4ang'
+    dataset_url = 'file://' + os.getcwd() + '/data/petastorm_datasets/complete/Berkeley_GaborFeatures_6freq_6ang'
 
     datasets = []
     with make_reader(dataset_url) as reader:
@@ -220,7 +220,7 @@ if __name__ == '__main__':
             os.makedirs(outdir)
 
         segmentation_metrics = Parallel(n_jobs=num_cores, prefer='processes')(
-            delayed(clustering_segmentation_and_metrics)(dataset, algo_params, num_clusters) for dataset, algo_params in datasets)
+            delayed(clustering_segmentation_and_metrics)(i_dataset+1, dataset, algo_params, num_clusters) for i_dataset, (dataset, algo_params) in enumerate(datasets))
 
         KMeans_metrics = []
         MiniBatchKMeans_metrics = []

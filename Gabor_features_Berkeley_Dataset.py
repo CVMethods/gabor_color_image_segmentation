@@ -77,9 +77,9 @@ def bsd_features_to_petastorm_dataset(features_list, output_url, spark_master=No
 
     session_builder = SparkSession \
         .builder \
-        .appName('BSD Features Dataset Creation') \
-        .config('spark.executor.memory', '10g') \
-        .config('spark.driver.memory', '10g')  # Increase the memory if running locally with high number of executors
+        .appName('/BSD Features Dataset Creation') #\
+        # .config('spark.executor.memory', '400g') \
+        # .config('spark.driver.memory', '400g')  # Increase the memory if running locally with high number of executors
     if spark_master:
         session_builder.master(spark_master)
 
@@ -90,7 +90,7 @@ def bsd_features_to_petastorm_dataset(features_list, output_url, spark_master=No
     with materialize_dataset(spark, output_url, BSDFeaturesSchema, ROWGROUP_SIZE_MB):
 
         # rdd of [(img_id, 'subdir', image), ...] & Convert to pyspark.sql.Row
-        sql_rows_rdd = sc.parallelize(features_list, numSlices=100).map(lambda r: dict_to_spark_row(BSDFeaturesSchema, r))
+        sql_rows_rdd = sc.parallelize(features_list, numSlices=min(len(features_list) / 10 + 1, 10000)).map(lambda r: dict_to_spark_row(BSDFeaturesSchema, r))  #
 
         # Write out the result
         spark.createDataFrame(sql_rows_rdd, BSDFeaturesSchema.as_spark_schema()) \
@@ -102,18 +102,19 @@ def bsd_features_to_petastorm_dataset(features_list, output_url, spark_master=No
 
 
 if __name__ == '__main__':
-    dataset_path = 'data/petastorm_datasets/test/Berkeley_images'
-    output_path = 'data/petastorm_datasets/test/Berkeley_GaborFeatures'
-    dataset_url = 'file://' + os.getcwd() + '/data/petastorm_datasets/test/Berkeley_images'
-    output_url = 'file://' + os.getcwd() + '/data/petastorm_datasets/test/Berkeley_GaborFeatures'
-    # output_url = 'file://' + os.getcwd() + '/data/BSD_features_petastorm_dataset_test'
+
+    # dataset_url = 'file://' + os.getcwd() + '/data/petastorm_datasets/test/Berkeley_images'
+    # output_url = 'file://' + os.getcwd() + '/data/petastorm_datasets/test/Berkeley_GaborFeatures'
+
+    dataset_url = 'file://' + os.getcwd() + '/data/petastorm_datasets/complete/Berkeley_images'
+    output_url = 'file://' + os.getcwd() + '/data/petastorm_datasets/complete/Berkeley_GaborFeatures'
 
 
     # Generating Gabor filterbank
     min_period = 2.
     max_period = 35.
-    fb = 1
-    ab = 45
+    fb = 0.7  # 1 #
+    ab = 30  # 45 #
     c1 = 0.9
     c2 = 0.7
     stds = 3.5

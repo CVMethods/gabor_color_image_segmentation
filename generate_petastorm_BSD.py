@@ -109,9 +109,9 @@ def bsd_directory_to_petastorm_dataset(bsd_path, output_url, spark_master=None, 
 
 
 if __name__ == '__main__':
-    # bsd_path = 'data/Berkeley/'
-    # output_url = 'file://' + os.getcwd() + '/data/petastorm_datasets/Berkeley_images'
+    bsd_path = 'data/Berkeley/'
+    output_url = 'file://' + os.getcwd() + '/data/petastorm_datasets/complete/Berkeley_images'
 
-    bsd_path = 'data/myFavorite_BSDimages/'
-    output_url = 'file://' + os.getcwd() + '/data/petastorm_datasets/test/Berkeley_images'
+    # bsd_path = 'data/myFavorite_BSDimages/'
+    # output_url = 'file://' + os.getcwd() + '/data/petastorm_datasets/test/Berkeley_images'
     bsd_directory_to_petastorm_dataset(bsd_path, output_url)
