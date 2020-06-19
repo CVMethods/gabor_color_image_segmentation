@@ -190,7 +190,9 @@ if __name__ == '__main__':
 
     np.random.seed(0)
 
-    dataset_url = 'file://' + os.getcwd() + '/data/petastorm_datasets/complete/Berkeley_GaborFeatures_6freq_6ang'
+    # dataset_url = 'file://' + os.getcwd() + '/../data/petastorm_datasets/complete/Berkeley_GaborFeatures_6freq_6ang'
+
+    dataset_url = 'file://' + os.getcwd() + '/../data/petastorm_datasets/test/Berkeley_GaborFeatures_5freq_4ang'
 
     datasets = []
     with make_reader(dataset_url) as reader:
@@ -207,14 +209,14 @@ if __name__ == '__main__':
                     'min_samples': 20,
                     'xi': 0.05,
                     'min_cluster_size': 0.1,
-                    'n_jobs': -1}
+                    'n_jobs': 10}
 
-    num_cores = -1
+    num_cores = 10
 
     possible_num_clusters = ['max', 'min', 'mean', 'hmean', 'const']
     for num_clusters in possible_num_clusters:
 
-        outdir = 'data/outdir/' + dataset_url[-10:] + '/' + num_clusters + '_nclusters/'
+        outdir = '../data/outdir/' + dataset_url[-10:] + '/' + num_clusters + '_nclusters/'
 
         if not os.path.exists(outdir):
             os.makedirs(outdir)

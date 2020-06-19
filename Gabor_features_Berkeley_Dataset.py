@@ -77,9 +77,9 @@ def bsd_features_to_petastorm_dataset(features_list, output_url, spark_master=No
 
     session_builder = SparkSession \
         .builder \
-        .appName('/BSD Features Dataset Creation') #\
-        # .config('spark.executor.memory', '400g') \
-        # .config('spark.driver.memory', '400g')  # Increase the memory if running locally with high number of executors
+        .appName('BSD Features Dataset Creation') \
+        .config('spark.executor.memory', '10g') \
+        .config('spark.driver.memory', '10g')  # Increase the memory if running locally with high number of executors
     if spark_master:
         session_builder.master(spark_master)
 
@@ -103,18 +103,18 @@ def bsd_features_to_petastorm_dataset(features_list, output_url, spark_master=No
 
 if __name__ == '__main__':
 
-    # dataset_url = 'file://' + os.getcwd() + '/data/petastorm_datasets/test/Berkeley_images'
-    # output_url = 'file://' + os.getcwd() + '/data/petastorm_datasets/test/Berkeley_GaborFeatures'
+    dataset_url = 'file://' + os.getcwd() + '/../data/petastorm_datasets/test/Berkeley_images'
+    output_url = 'file://' + os.getcwd() + '/../data/petastorm_datasets/test/Berkeley_GaborFeatures'
 
-    dataset_url = 'file://' + os.getcwd() + '/data/petastorm_datasets/complete/Berkeley_images'
-    output_url = 'file://' + os.getcwd() + '/data/petastorm_datasets/complete/Berkeley_GaborFeatures'
+    # dataset_url = 'file://' + os.getcwd() + '/../data/petastorm_datasets/complete/Berkeley_images'
+    # output_url = 'file://' + os.getcwd() + '/../data/petastorm_datasets/complete/Berkeley_GaborFeatures'
 
 
     # Generating Gabor filterbank
     min_period = 2.
     max_period = 35.
-    fb = 0.7  # 1 #
-    ab = 30  # 45 #
+    fb = 1  # 0.7  #
+    ab = 45  # 30  #
     c1 = 0.9
     c2 = 0.7
     stds = 3.5

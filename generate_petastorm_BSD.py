@@ -59,7 +59,7 @@ def bsd_directory_to_petastorm_dataset(bsd_path, output_url, spark_master=None, 
     """
     session_builder = SparkSession \
         .builder \
-        .appName('BSD Features Dataset Creation') \
+        .appName('BSD Dataset Creation') \
         .config('spark.executor.memory', '10g') \
         .config('spark.driver.memory', '10g')  # Increase the memory if running locally with high number of executors
     if spark_master:
@@ -70,6 +70,7 @@ def bsd_directory_to_petastorm_dataset(bsd_path, output_url, spark_master=None, 
 
     # list of [(img_id, 'subdir', path), ...]
     subdirectories = os.listdir(bsd_path)
+
     berkeley_dataset_list = []
     for subdir in subdirectories:
         imgs_path = bsd_path + subdir + "/"
@@ -109,9 +110,9 @@ def bsd_directory_to_petastorm_dataset(bsd_path, output_url, spark_master=None, 
 
 
 if __name__ == '__main__':
-    bsd_path = 'data/Berkeley/'
-    output_url = 'file://' + os.getcwd() + '/data/petastorm_datasets/complete/Berkeley_images'
+    # bsd_path = '../data/Berkeley/'
+    # output_url = 'file://' + os.getcwd() + '../data/petastorm_datasets/complete/Berkeley_images'
 
-    # bsd_path = 'data/myFavorite_BSDimages/'
-    # output_url = 'file://' + os.getcwd() + '/data/petastorm_datasets/test/Berkeley_images'
+    bsd_path = '../data/myFavorite_BSDimages/'
+    output_url = 'file://' + os.getcwd() + '/../data/petastorm_datasets/test/Berkeley_images'
     bsd_directory_to_petastorm_dataset(bsd_path, output_url)
