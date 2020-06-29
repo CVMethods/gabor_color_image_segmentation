@@ -75,7 +75,7 @@ class ImageIndexer(object):
         self.image_shape_db = self.db.create_dataset(
             "image_shapes",
             shape=(self.num_of_images,  3),
-            dtype=np.uint16
+            dtype=np.int64
         )
 
         self.num_groundtruth_regions_db = self.db.create_dataset(
@@ -138,7 +138,6 @@ if __name__ == '__main__':
         hdf5_dir.mkdir(parents=True, exist_ok=True)
 
     elif num_imgs is 7:
-        print('pass')
         # Path to my 7 favourite images from the Berkeley data set
         bsd_path = Path('../data/myFavorite_BSDimages/')
         hdf5_dir = Path('../data/hdf5_datasets/7images/')
