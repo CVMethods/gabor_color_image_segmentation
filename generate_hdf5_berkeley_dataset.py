@@ -1,4 +1,5 @@
 import h5py
+import h5py_cache
 import pdb
 
 from pathlib import Path
@@ -9,7 +10,7 @@ from scipy.stats import hmean
 
 class ImageIndexer(object):
     def __init__(self, db_path, fixed_image_shape=(512, 512), buffer_size=200, num_of_images=100):
-        self.db = h5py.File(db_path, mode='w')
+        self.db = h5py.File(db_path, mode='w')#, chunk_cache_mem_size=500*1024**2
         self.buffer_size = buffer_size
         self.num_of_images = num_of_images
         self.fixed_image_shape = fixed_image_shape
@@ -61,27 +62,30 @@ class ImageIndexer(object):
             "image_ids",
             (self.num_of_images,),
             maxshape=None,
-            dtype=h5py.special_dtype(vlen=str)
-
+            dtype=h5py.special_dtype(vlen=str),
+            chunks=True
         )
 
         self.image_vector_db = self.db.create_dataset(
             "images",
             shape=(self.num_of_images, IMG_ROWS * IMG_COLS, 3),
             maxshape=(self.num_of_images, None, None),
-            dtype=np.uint8
+            dtype=np.uint8,
+            chunks=True
         )
 
         self.image_shape_db = self.db.create_dataset(
             "image_shapes",
             shape=(self.num_of_images,  3),
-            dtype=np.int64
+            dtype=np.int64,
+            chunks=True
         )
 
         self.num_groundtruth_regions_db = self.db.create_dataset(
             "num_seg",
             shape=(self.num_of_images,  4),
-            dtype=np.int64
+            dtype=np.int64,
+            chunks=True
         )
 
     def add(self, image_name, image_vector, image_shape, num_seg):
