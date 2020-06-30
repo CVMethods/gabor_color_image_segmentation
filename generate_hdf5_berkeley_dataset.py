@@ -145,7 +145,7 @@ if __name__ == '__main__':
 
     with ImageIndexer(hdf5_dir / "Berkeley_images.h5",
                       fixed_image_shape=(481, 321, 3),
-                      buffer_size=200,
+                      buffer_size=num_imgs,
                       num_of_images=num_imgs) as imageindexer:
 
         subdirectories = os.listdir(bsd_path)
