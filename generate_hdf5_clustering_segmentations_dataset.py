@@ -199,10 +199,12 @@ def get_num_segments(segments):
 
     return np.array((max(n_labels), min(n_labels), int(n_labels.mean()), int(hmean(n_labels))))
 
+
 def prepare_dataset(img_id, gabor_features, img_shape):
     ground_truth = np.array(get_segment_from_filename(img_id))
     n_segments = get_num_segments(ground_truth)
     return (img_id, gabor_features, ground_truth, n_segments, img_shape), {}
+
 
 if __name__ == '__main__':
     np.random.seed(0)
@@ -217,17 +219,20 @@ if __name__ == '__main__':
         # Path to my 7 favourite images from the Berkeley data set
         hdf5_dir = Path('../data/hdf5_datasets/7images/')
 
+    print('Reading Berkeley image data set')
+    t0 = time.time()
     # Read hdf5 file and extract its information
     images_file = h5py.File(hdf5_dir / "Berkeley_images.h5", "r+")
-    image_vectors = np.array(images_file["/images"])
+    # image_vectors = np.array(images_file["/images"])
     img_shapes = np.array(images_file["/image_shapes"])
     img_ids = np.array(images_file["/image_ids"])
-    num_seg = np.array(images_file["/num_seg"])
+    # num_seg = np.array(images_file["/num_seg"])
 
     features_file = h5py.File(hdf5_dir / "Berkeley_GaborFeatures.h5", "r+")
-    complex_images = np.array(features_file["/complex_images"])
+    # complex_images = np.array(features_file["/complex_images"])
     features = np.array(features_file["/gabor_features"])
-
+    t1 = time.time()
+    print('Reading hdf5 image data set time: %.2fs' % (t1 - t0))
     num_cores = -1
 
     # images = Parallel(n_jobs=num_cores)(
@@ -236,7 +241,7 @@ if __name__ == '__main__':
     iterator = zip(img_ids, features, img_shapes)
 
     datasets = Parallel(n_jobs=num_cores)(
-            delayed(prepare_dataset)(im_id, feature, shape) for im_id, feature, shape in iterator)
+        delayed(prepare_dataset)(im_id, feature, shape) for im_id, feature, shape in iterator)
     # for sample in reader:
     #     datasets.append(((sample.img_id.decode('UTF-8'), sample.gabor_features, sample.ground_truth, sample.num_seg,
     #                           sample.img_shape), {}))
@@ -251,18 +256,17 @@ if __name__ == '__main__':
                     'min_cluster_size': 0.1,
                     'n_jobs': 10}
 
-
-
     possible_num_clusters = ['max', 'min', 'mean', 'hmean', 'const']
     for num_clusters in possible_num_clusters:
 
-        outdir = '../data/outdir/' +  'hdf5_dataset/' + num_clusters + '_nclusters/'
+        outdir = '../data/outdir/' + 'hdf5_dataset/' + num_clusters + '_nclusters/'
 
         if not os.path.exists(outdir):
             os.makedirs(outdir)
 
         segmentation_metrics = Parallel(n_jobs=num_cores, prefer='processes')(
-            delayed(clustering_segmentation_and_metrics)(i_dataset+1, dataset, algo_params, num_clusters) for i_dataset, (dataset, algo_params) in enumerate(datasets))
+            delayed(clustering_segmentation_and_metrics)(i_dataset + 1, dataset, algo_params, num_clusters) for
+            i_dataset, (dataset, algo_params) in enumerate(datasets))
 
         KMeans_metrics = []
         MiniBatchKMeans_metrics = []
@@ -289,11 +293,14 @@ if __name__ == '__main__':
             precision = result_metrics[:, 1]
 
             plt.figure(dpi=180)
-            plt.plot(np.arange(len(datasets))+1, recall, '-o', c='k', label='recall')
+            plt.plot(np.arange(len(datasets)) + 1, recall, '-o', c='k', label='recall')
             plt.plot(np.arange(len(datasets)) + 1, precision, '-o', c='r', label='precision')
             plt.title(name + ' P/R histogram ' + num_clusters + ' nclusters')
-            plt.xlabel('Rmax: %.3f, Rmin: %.3f, Rmean: %.3f, Rmed: %.3f, Rstd: %.3f \n Pmax: %.3f, Pmin: %.3f, Pmean: %.3f, Pmed: %.3f, Pstd: %.3f ' % (
-                recall.max(), recall.min(), recall.mean(), np.median(recall), recall.std(), precision.max(), precision.min(), precision.mean(), np.median(precision), precision.std()))
+            plt.xlabel(
+                'Rmax: %.3f, Rmin: %.3f, Rmean: %.3f, Rmed: %.3f, Rstd: %.3f \n Pmax: %.3f, Pmin: %.3f, Pmean: %.3f, '
+                'Pmed: %.3f, Pstd: %.3f ' % (recall.max(), recall.min(), recall.mean(), np.median(recall), recall.std(),
+                                             precision.max(), precision.min(), precision.mean(), np.median(precision),
+                                             precision.std()))
             plt.ylim(0, 1.05)
             plt.legend()
             plt.grid()
