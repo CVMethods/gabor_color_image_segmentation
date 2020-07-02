@@ -17,14 +17,14 @@ class ImageIndexer(object):
         self.image_vector_db = None
         self.image_id_db = None
         self.image_shape_db = None
-        self.num_groundtruth_regions_db = None
+        # self.num_groundtruth_regions_db = None
         #         self.db_index = None
         self.idxs = {"index": 0}
 
         self.image_vector_buffer = []
         self.image_id_buffer = []
         self.image_shape_buffer = []
-        self.num_groundtruth_regions_buffer = []
+        # self.num_groundtruth_regions_buffer = []
 
     #         self.db_index_buffer = []
 
@@ -41,7 +41,7 @@ class ImageIndexer(object):
             self._write_buffer(self.image_id_db, self.image_id_buffer)
             self._write_buffer(self.image_vector_db, self.image_vector_buffer)
             self._write_buffer(self.image_shape_db, self.image_shape_buffer)
-            self._write_buffer(self.num_groundtruth_regions_db, self.num_groundtruth_regions_buffer)
+            # self._write_buffer(self.num_groundtruth_regions_db, self.num_groundtruth_regions_buffer)
 
         print("closing h5 db")
         self.db.close()
@@ -63,7 +63,7 @@ class ImageIndexer(object):
             (self.num_of_images,),
             maxshape=None,
             dtype=h5py.special_dtype(vlen=str),
-            chunks=True
+            # chunks=True
         )
 
         self.image_vector_db = self.db.create_dataset(
@@ -71,37 +71,37 @@ class ImageIndexer(object):
             shape=(self.num_of_images, IMG_ROWS * IMG_COLS, 3),
             maxshape=(self.num_of_images, None, None),
             dtype=np.uint8,
-            chunks=True
+            chunks=(1, IMG_ROWS * IMG_COLS, 3)
         )
 
         self.image_shape_db = self.db.create_dataset(
             "image_shapes",
             shape=(self.num_of_images,  3),
             dtype=np.int64,
-            chunks=True
+            # chunks=True
         )
 
-        self.num_groundtruth_regions_db = self.db.create_dataset(
-            "num_seg",
-            shape=(self.num_of_images,  4),
-            dtype=np.int64,
-            chunks=True
-        )
+        # self.num_groundtruth_regions_db = self.db.create_dataset(
+        #     "num_seg",
+        #     shape=(self.num_of_images,  4),
+        #     dtype=np.int64,
+        #     chunks=True
+        # )
 
-    def add(self, image_name, image_vector, image_shape, num_seg):
+    def add(self, image_name, image_vector, image_shape,):# num_seg
         self.image_id_buffer.append(image_name)
         self.image_vector_buffer.append(image_vector.reshape(self.image_vector_size))
         self.image_shape_buffer.append(image_shape)
-        self.num_groundtruth_regions_buffer.append(num_seg)
+        # self.num_groundtruth_regions_buffer.append(num_seg)
 
-        if None in (self.image_vector_db, self.image_id_db, self.image_shape_db, self.num_groundtruth_regions_db):
+        if None in (self.image_vector_db, self.image_id_db, self.image_shape_db):#, self.num_groundtruth_regions_db
             self.create_datasets()
 
         if len(self.image_id_buffer) >= self.buffer_size:
             self._write_buffer(self.image_id_db, self.image_id_buffer)
             self._write_buffer(self.image_vector_db, self.image_vector_buffer)
             self._write_buffer(self.image_shape_db, self.image_shape_buffer)
-            self._write_buffer(self.num_groundtruth_regions_db, self.num_groundtruth_regions_buffer)
+            # self._write_buffer(self.num_groundtruth_regions_db, self.num_groundtruth_regions_buffer)
 
             # increment index
             self.idxs['index'] += len(self.image_vector_buffer)
@@ -119,7 +119,7 @@ class ImageIndexer(object):
         self.image_id_buffer = []
         self.image_vector_buffer = []
         self.image_shape_buffer = []
-        self.num_groundtruth_regions_buffer = []
+        # self.num_groundtruth_regions_buffer = []
 
 
 def get_num_segments(segments):
@@ -149,7 +149,7 @@ if __name__ == '__main__':
 
     with ImageIndexer(hdf5_dir / "Berkeley_images.h5",
                       fixed_image_shape=(481, 321, 3),
-                      buffer_size=num_imgs,
+                      buffer_size=50,
                       num_of_images=num_imgs) as imageindexer:
 
         subdirectories = os.listdir(bsd_path)
@@ -160,6 +160,6 @@ if __name__ == '__main__':
             for file_name in list_imgs:
                 image_id = file_name[:-4]
                 image_array = io.imread(imgs_path / file_name)
-                groundtruth_segments = np.array(get_segment_from_filename(file_name[:-4]))
-                n_segments = get_num_segments(groundtruth_segments)
-                imageindexer.add(image_id, image_array, image_array.shape, n_segments)
+                # groundtruth_segments = np.array(get_segment_from_filename(file_name[:-4]))
+                # n_segments = get_num_segments(groundtruth_segments)
+                imageindexer.add(image_id, image_array, image_array.shape)#, n_segments
