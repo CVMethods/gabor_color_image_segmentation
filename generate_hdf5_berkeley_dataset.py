@@ -42,7 +42,7 @@ class ImageIndexer(object):
 
         print("closing h5 db")
         self.db.close()
-        print("indexing took {0}".format(time.time() - self.t0))
+        print("indexing took: %.2fs" % (time.time() - self.t0))
 
     def create_datasets(self):
         self.image_ids_db = self.db.create_dataset(
@@ -107,9 +107,9 @@ class ImageIndexer(object):
 
 
 if __name__ == '__main__':
+    num_imgs = 500
     bsd_path = Path('../data/')
     hdf5_dir = Path('../data/hdf5_datasets/')
-    num_imgs = 7
 
     if num_imgs is 500:
         # Path to whole Berkeley image data set

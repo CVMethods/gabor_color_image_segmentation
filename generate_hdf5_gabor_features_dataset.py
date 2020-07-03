@@ -1,32 +1,27 @@
 # -*- coding: utf-8 -*-
 # !/usr/bin/env python
 
-
 import h5py
-import numpy as np
-import matplotlib.pyplot as plt
-from mpl_toolkits.axes_grid1 import make_axes_locatable
+import time
 
 from pathlib import Path
 from joblib import Parallel, delayed
 
-from BSD_metrics.metrics import *
 from Gabor_analysis.myGaborFunctions import *
 from complexColor.color_transformations import *
 
+
 class ImageIndexer(object):
-    def __init__(self, db_path, fixed_image_shape=(512, 512, 3), fixed_features_shape=(512, 20), buffer_size=200, num_of_images=100):
+    def __init__(self, db_path, buffer_size=200, num_of_images=100):
         self.db = h5py.File(db_path, mode='w')
         self.buffer_size = buffer_size
         self.num_of_images = num_of_images
-        self.fixed_image_shape = fixed_image_shape
-        self.fixed_features_shape = fixed_features_shape
-        # self.image_vector_db = None
-        self.feature_vector_db = None
+        self.feature_arrays_db = None
+        self.feature_shapes_db = None
         self.idxs = {"index": 0}
 
-        # self.image_vector_buffer = []
-        self.feature_vector_buffer = []
+        self.feature_arrays_buffer = []
+        self.feature_shapes_buffer = []
 
     def __enter__(self):
         print("indexing {} images".format(self.num_of_images))
@@ -34,57 +29,45 @@ class ImageIndexer(object):
         return self
 
     def __exit__(self, exc_type, exc_val, exc_tb):
-        if self.feature_vector_buffer:
+        if self.feature_arrays_buffer:
             print("writing last buffers")
-            print(len(self.feature_vector_buffer))
+            print(len(self.feature_arrays_buffer))
 
-            self._write_buffer(self.feature_vector_db, self.feature_vector_buffer)
-            # self._write_buffer(self.image_vector_db, self.image_vector_buffer)
+            self._write_buffer(self.feature_arrays_db, self.feature_arrays_buffer)
+            self._write_buffer(self.feature_shapes_db, self.feature_shapes_buffer)
 
         print("closing h5 db")
         self.db.close()
-        print("indexing took {0}s".format(time.time() - self.t0))
-
-    @property
-    def image_vector_size(self):
-        if self.fixed_image_shape:
-            return self.fixed_image_shape[2], self.fixed_image_shape[0]*self.fixed_image_shape[1]
-        else:
-            return None
+        print("indexing took: %.2fs" % (time.time() - self.t0))
 
     def create_datasets(self):
-        IMG_ROWS, IMG_COLS, CHANN = self.fixed_image_shape
-        IMG_PXLS, IMG_FEAT = self.fixed_features_shape
-        #
-        # self.image_vector_db = self.db.create_dataset(
-        #     "complex_images",
-        #     shape=(self.num_of_images, 3, IMG_ROWS * IMG_COLS),
-        #     maxshape=(self.num_of_images, None, None),
-        #     dtype=np.float32,
-        #     chunks=True
-        # )
-
-        self.feature_vector_db = self.db.create_dataset(
+        self.feature_arrays_db = self.db.create_dataset(
             "gabor_features",
-            shape=(self.num_of_images, IMG_PXLS, IMG_FEAT),
-            maxshape=(self.num_of_images, None, None),
-            dtype=np.float32,
-            chunks=(1, IMG_PXLS, IMG_FEAT)
+            shape=(self.num_of_images,),
+            maxshape=(None,),
+            dtype=h5py.special_dtype(vlen=np.dtype('float32'))
         )
 
-    def add(self, feature_vector):#image_vector,
-        # self.image_vector_buffer.append(image_vector.reshape(self.image_vector_size))
-        self.feature_vector_buffer.append(feature_vector)
+        self.feature_shapes_db = self.db.create_dataset(
+            "feature_shapes",
+            shape=(self.num_of_images,  2),
+            maxshape=(None, 2),
+            dtype=np.int64
+        )
 
-        if self.feature_vector_db is None:#if None in (self.feature_vector_db):#self.image_vector_db,
+    def add(self, feature_array):
+        self.feature_arrays_buffer.append(feature_array.flatten())
+        self.feature_shapes_buffer.append(feature_array.shape)
+
+        if self.feature_arrays_db is None:
             self.create_datasets()
 
-        if len(self.feature_vector_buffer) >= self.buffer_size:
-            # self._write_buffer(self.image_vector_db, self.image_vector_buffer)
-            self._write_buffer(self.feature_vector_db, self.feature_vector_buffer)
+        if len(self.feature_arrays_buffer) >= self.buffer_size:
+            self._write_buffer(self.feature_arrays_db, self.feature_arrays_buffer)
+            self._write_buffer(self.feature_shapes_db, self.feature_shapes_buffer)
 
             # increment index
-            self.idxs['index'] += len(self.feature_vector_buffer)
+            self.idxs['index'] += len(self.feature_arrays_buffer)
 
             # clean buffers
             self._clean_buffers()
@@ -96,8 +79,8 @@ class ImageIndexer(object):
         dataset[start:start + end] = buf
 
     def _clean_buffers(self):
-        # self.image_vector_buffer = []
-        self.feature_vector_buffer = []
+        self.feature_arrays_buffer = []
+        self.feature_shapes_buffer = []
 
 
 def get_gabor_features(img_complex, gabor_filters, r_type, gsmooth, opn, selem_size):
@@ -109,28 +92,30 @@ def get_gabor_features(img_complex, gabor_filters, r_type, gsmooth, opn, selem_s
     g_responses_norm = normalize_img(filter_responses, rows, cols)
     # print(np.sum(g_responses_norm**2) / (rows*cols))
 
-    features = []
+    g_features = []
     for ff in range(g_responses_norm.shape[1]):
-        features.append(reshape4clustering(g_responses_norm[0][ff], rows, cols))
-        features.append(reshape4clustering(g_responses_norm[1][ff], rows, cols))
-        features.append(reshape4clustering(g_responses_norm[2][ff], rows, cols))
+        g_features.append(reshape4clustering(g_responses_norm[0][ff], rows, cols))
+        g_features.append(reshape4clustering(g_responses_norm[1][ff], rows, cols))
+        g_features.append(reshape4clustering(g_responses_norm[2][ff], rows, cols))
 
-    features = np.array(features).T
+    g_features = np.array(g_features).T
 
-    return features
+    return g_features
 
 
 if __name__ == '__main__':
-
     num_imgs = 500
+    hdf5_dir = Path('../data/hdf5_datasets/')
 
     if num_imgs is 500:
         # Path to whole Berkeley image data set
-        hdf5_dir = Path('../data/hdf5_datasets/complete/')
+        hdf5_dir = hdf5_dir / 'complete/'
 
     elif num_imgs is 7:
         # Path to my 7 favourite images from the Berkeley data set
-        hdf5_dir = Path('../data/hdf5_datasets/7images/')
+        hdf5_dir = hdf5_dir / '7images/'
+
+    hdf5_dir.mkdir(parents=True, exist_ok=True)
 
     # Generating Gabor filterbank
     min_period = 2.
@@ -157,14 +142,15 @@ if __name__ == '__main__':
     print('Reading Berkeley image data set')
     t0 = time.time()
     file = h5py.File(hdf5_dir / "Berkeley_images.h5", "r+")
+    img_ids = np.array(file["/image_ids"])
     image_vectors = np.array(file["/images"])
     img_shapes = np.array(file["/image_shapes"])
-    img_ids = np.array(file["/image_ids"])
-    t1 = time.time()
-    print('Reading hdf5 image data set time: %.2fs' % (t1 - t0))
 
     images = Parallel(n_jobs=num_cores)(
-        delayed(np.reshape)(img, (shape[0], shape[1], shape[2])) for img, shape in zip(image_vectors, img_shapes))
+        delayed(np.reshape)(img, shape) for img, shape in zip(image_vectors, img_shapes))
+
+    t1 = time.time()
+    print('Reading hdf5 image data set time: %.2fs' % (t1 - t0))
 
     # ## Parallel computation of Gabor features
     print('Computing Gabor features:')
@@ -177,16 +163,13 @@ if __name__ == '__main__':
     t1 = time.time()
     print('Features computing time (using Parallel joblib): %.2fs' % (t1 - t0))
 
-    with ImageIndexer(hdf5_dir / "Berkeley_GaborFeatures_attrs.h5",
-                      fixed_image_shape=(481, 321, 3),
-                      fixed_features_shape=(img_shapes[0][0]*img_shapes[0][1], n_freq*n_angles*img_shapes[0][2]),
+    output_file = 'Berkeley_GaborFeatures_%df_%da.h5' % (n_freq, n_angles)
+    with ImageIndexer(hdf5_dir / output_file,
                       buffer_size=10,
                       num_of_images=num_imgs) as imageindexer:
 
-        # for img, features in zip(gabor_features):#twoChannel_imgs,
-        #     imageindexer.add(features)#img,
-        for features in gabor_features:#twoChannel_imgs,
-            imageindexer.add(features)#img,
+        for features in gabor_features:
+            imageindexer.add(features)
             imageindexer.db.attrs['num_freq'] = n_freq
             imageindexer.db.attrs['num_angles'] = n_angles
             imageindexer.db.attrs['min_period'] = min_period
@@ -196,11 +179,3 @@ if __name__ == '__main__':
             imageindexer.db.attrs['crossing_point1'] = c1
             imageindexer.db.attrs['crossing_point2'] = c2
             imageindexer.db.attrs['num_stds'] = stds
-        # Parallel(n_jobs=num_cores)(delayed(imageindexer.add)(img, features) for img, features in zip(twoChannel_imgs, gabor_features))
-
-    # # Read hdf5 file and extract its information
-    # features_file = h5py.File(hdf5_dir/ "Berkeley_GaborFeatures.h5", "r+")
-    # complex_images = np.array(features_file["/complex_images"])
-    # features = np.array(features_file["/gabor_features"])
-    #
-    # pdb.set_trace()
