@@ -165,7 +165,7 @@ if __name__ == '__main__':
 
     output_file = 'Berkeley_GaborFeatures_%df_%da.h5' % (n_freq, n_angles)
     with ImageIndexer(hdf5_dir / output_file,
-                      buffer_size=10,
+                      buffer_size=num_imgs,
                       num_of_images=num_imgs) as imageindexer:
 
         for features in gabor_features:
