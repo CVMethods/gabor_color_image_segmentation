@@ -1,9 +1,9 @@
 """
 =========================================================
-Comparing different clustering algorithms on images
+Comparing different clustering algorithms on BSD images
 =========================================================
 
-Ce script est inspiré de comparaison de différentes techniques de clustering en scikit-learn et adapté aux images. Le clustering, très basique, se fait sur la base de couleurs RGB.
+Ce script est inspiré de comparaison de différentes techniques de clustering en scikit-learn et adapté aux images. Le clustering, très basique, se fait sur la base des charactéritiques de Gabor.
 
 Il n'y a que deux algorithmes assez rapide pour marcher sur les pixels. Cependant, d'autres clustering techniques peuvent être testés après sous-échantillonnage de l'image d'entrée. Il faudra tester ces algorithmes sur l'aggrégation de superpixels.
 
@@ -28,7 +28,7 @@ from mpl_toolkits.axes_grid1 import make_axes_locatable
 
 matplotlib.use('TKAgg')
 import matplotlib.pyplot as plt
-
+from skimage import segmentation, color, data
 from skimage.io import imread
 from sklearn import cluster, datasets, mixture
 from sklearn.neighbors import kneighbors_graph
@@ -46,7 +46,7 @@ def clustering_segmentation_and_metrics(i_dataset, dataset, algo_params, num_clu
     params = default_base.copy()
     params.update(algo_params)
 
-    img_id, X, y, n_clusters, img_size = dataset
+    img_id, img, X, y, n_clusters, img_size = dataset
 
     print('dataset image:', img_id)
 
@@ -166,20 +166,22 @@ def clustering_segmentation_and_metrics(i_dataset, dataset, algo_params, num_clu
         metrics_values = m.get_metrics()
 
         plt.figure(dpi=180)
+        out = color.label2rgb(y_pred, img, kind='avg')
+        out = segmentation.mark_boundaries(out, y_pred, color=(0, 0, 0), mode='thick')
         ax = plt.gca()
-        im = ax.imshow(y_pred, cmap=plt.cm.get_cmap('jet', nc))
+        im = ax.imshow(out)#, cmap=plt.cm.get_cmap('jet', nc)
         ax.tick_params(axis='both', which='both', labelsize=7, pad=0.1,
                        length=2)  # , bottom=False, left=False, labelbottom=False, labelleft=False
         ax.set_title(algo_name + ' k=%d' % nc, fontsize=10)
         ax.set_xlabel(('Recall: %.3f, Precision: %.3f, Time: %.2fs' % (
             metrics_values['recall'], metrics_values['precision'], (t1 - t0))).lstrip('0'), fontsize=10)
 
-        divider = make_axes_locatable(ax)
-        cax = divider.append_axes("right", size="5%", pad=0.1)
-        cb = plt.colorbar(im, cax=cax, ticks=(np.arange(nc) + 0.5) * (nc - 1) / nc)
-        cb.set_label(label='$labels$', fontsize=10)
-        cb.ax.tick_params(labelsize=6)
-        cb.ax.set_yticklabels([r'${{{}}}$'.format(val) for val in range(nc)])
+        # divider = make_axes_locatable(ax)
+        # cax = divider.append_axes("right", size="5%", pad=0.1)
+        # cb = plt.colorbar(im, cax=cax, ticks=(np.arange(nc) + 0.5) * (nc - 1) / nc)
+        # cb.set_label(label='$labels$', fontsize=10)
+        # cb.ax.tick_params(labelsize=6)
+        # cb.ax.set_yticklabels([r'${{{}}}$'.format(val) for val in range(nc)])
         plt.savefig(outdir + '%02d' % i_dataset + '_' + img_id + '_' + algo_name + '_' + num_clusters + '_segm.png')
 
         plt.close('all')
@@ -200,48 +202,60 @@ def get_num_segments(segments):
     return np.array((max(n_labels), min(n_labels), int(n_labels.mean()), int(hmean(n_labels))))
 
 
-def prepare_dataset(img_id, gabor_features, img_shape):
+def prepare_dataset(img_id, image, gabor_features, img_shape):
     ground_truth = np.array(get_segment_from_filename(img_id))
     n_segments = get_num_segments(ground_truth)
-    return (img_id, gabor_features, ground_truth, n_segments, img_shape), {}
+    return (img_id, image, gabor_features, ground_truth, n_segments, img_shape), {}
 
 
 if __name__ == '__main__':
     np.random.seed(0)
 
     num_imgs = 500
+    ff = 6  # num of frequencies in filter bank
+    aa = 6  # num of angles in filter bank
+
+    hdf5_dir = Path('../data/hdf5_datasets/')
 
     if num_imgs is 500:
         # Path to whole Berkeley image data set
-        hdf5_dir = Path('../data/hdf5_datasets/complete/')
+        hdf5_dir = hdf5_dir / 'complete/'
+        num_imgs_dir = 'complete/'
 
     elif num_imgs is 7:
         # Path to my 7 favourite images from the Berkeley data set
-        hdf5_dir = Path('../data/hdf5_datasets/7images/')
+        hdf5_dir = hdf5_dir / '7images/'
+        num_imgs_dir = '7images/'
+
+    hdf5_dir.mkdir(parents=True, exist_ok=True)
 
     print('Reading Berkeley image data set')
     t0 = time.time()
     # Read hdf5 file and extract its information
     images_file = h5py.File(hdf5_dir / "Berkeley_images.h5", "r+")
-    # image_vectors = np.array(images_file["/images"])
+    image_vectors = np.array(images_file["/images"])
     img_shapes = np.array(images_file["/image_shapes"])
     img_ids = np.array(images_file["/image_ids"])
-    # num_seg = np.array(images_file["/num_seg"])
 
-    features_file = h5py.File(hdf5_dir / "Berkeley_GaborFeatures.h5", "r+")
-    # complex_images = np.array(features_file["/complex_images"])
-    features = np.array(features_file["/gabor_features"])
-    t1 = time.time()
-    print('Reading hdf5 image data set time: %.2fs' % (t1 - t0))
+    input_file = 'Berkeley_GaborFeatures_%df_%da.h5' % (ff, aa)
+    features_file = h5py.File(hdf5_dir / input_file, "r+")
+    feature_vectors = np.array(features_file["/gabor_features"])
+    feature_shapes = np.array(features_file["/feature_shapes"])
+
     num_cores = -1
 
-    # images = Parallel(n_jobs=num_cores)(
-    #     delayed(np.reshape)(img, (shape[0], shape[1], shape[2])) for img, shape in zip(image_vectors, img_shapes))
+    images = Parallel(n_jobs=num_cores)(
+        delayed(np.reshape)(img, (shape[0], shape[1], shape[2])) for img, shape in zip(image_vectors, img_shapes))
 
-    iterator = zip(img_ids, features, img_shapes)
+    features = Parallel(n_jobs=num_cores)(
+        delayed(np.reshape)(features, (shape[0], shape[1])) for features, shape in zip(feature_vectors, feature_shapes))
+    t1 = time.time()
+    print('Reading hdf5 image data set time: %.2fs' % (t1 - t0))
+
+    iterator = zip(img_ids, images, features, img_shapes)
 
     datasets = Parallel(n_jobs=num_cores)(
-        delayed(prepare_dataset)(im_id, feature, shape) for im_id, feature, shape in iterator)
+        delayed(prepare_dataset)(im_id, image, feature, shape) for im_id, image, feature, shape in iterator)
     # for sample in reader:
     #     datasets.append(((sample.img_id.decode('UTF-8'), sample.gabor_features, sample.ground_truth, sample.num_seg,
     #                           sample.img_shape), {}))
@@ -259,7 +273,7 @@ if __name__ == '__main__':
     possible_num_clusters = ['max', 'min', 'mean', 'hmean', 'const']
     for num_clusters in possible_num_clusters:
 
-        outdir = '../data/outdir/' + 'hdf5_dataset/' + num_clusters + '_nclusters/'
+        outdir = 'outdir/' + num_imgs_dir + num_clusters + '_nclusters/'
 
         if not os.path.exists(outdir):
             os.makedirs(outdir)
