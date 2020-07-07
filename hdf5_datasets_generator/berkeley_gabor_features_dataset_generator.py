@@ -7,8 +7,8 @@ import time
 from pathlib import Path
 from joblib import Parallel, delayed
 
-from Gabor_analysis.myGaborFunctions import *
-from complexColor.color_transformations import *
+from source.myGaborFunctions import *
+from source.color_transformations import *
 
 
 class ImageIndexer(object):

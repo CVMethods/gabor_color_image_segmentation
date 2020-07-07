@@ -4,7 +4,7 @@ import pdb
 
 from pathlib import Path
 from skimage import io
-from BSD_metrics.groundtruth import *
+from source.groundtruth import *
 from scipy.stats import hmean
 
 
