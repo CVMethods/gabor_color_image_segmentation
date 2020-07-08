@@ -1,0 +1,171 @@
+import sys
+import h5py
+import matplotlib
+matplotlib.use('TKAgg')
+import matplotlib.pyplot as plt
+
+from pathlib import Path
+from joblib import Parallel, delayed
+from scipy.cluster import vq
+from scipy.stats import hmean
+from sklearn.decomposition import PCA
+from skimage import segmentation
+from sklearn import mixture
+
+sys.path.append('../')
+from source.groundtruth import *
+from source.metrics import *
+
+
+def clustering_segmentation(i_dataset, dataset, algo_params, num_clusters):
+    # update parameters with dataset-specific values
+    params = default_base.copy()
+    params.update(algo_params)
+
+    img_id, img, X, y, n_clusters, img_size = dataset
+
+    print('dataset image:', img_id)
+
+    # img_size = img_size[:-1]
+    rows, cols, channels = img_size
+
+    if num_clusters == 'max':
+        params['n_clusters'] = int(n_clusters[0])
+    elif num_clusters == 'min':
+        params['n_clusters'] = int(n_clusters[1])
+    elif num_clusters == 'mean':
+        params['n_clusters'] = int(n_clusters[2])
+    elif num_clusters == 'hmean':
+        params['n_clusters'] = int(n_clusters[3])
+
+    # print(params['n_clusters'], num_clusters, int(n_clusters[0]))
+
+    # Add pixel's position to features to include locality
+    pixels = np.arange(rows * cols)
+    nodes = pixels.reshape((rows, cols))
+    yy, xx = np.where(nodes >= 0)
+    X = np.column_stack((X, yy, xx))
+
+    # # normalize dataset for easier parameter selection
+    # X = StandardScaler().fit_transform(X)
+    X = vq.whiten(X)
+
+    # Reduce data dimensionality (if needed for faster clustering computation)
+    pca = PCA(n_components=4)
+    X = pca.fit_transform(X)
+
+    # Create cluster object
+    algorithm = mixture.GaussianMixture(n_components=params['n_clusters'], covariance_type='full')
+    algo_name = 'GaussianMixture'
+
+    t0 = time.time()
+    algorithm.fit(X)
+    t1 = time.time()
+
+    if hasattr(algorithm, 'labels_'):
+        y_pred = algorithm.labels_.astype(np.int)
+    else:
+        y_pred = algorithm.predict(X)
+
+    nc = len(np.unique(y_pred))
+    y_pred = y_pred.reshape((rows, cols))
+
+    # Evaluate metrics
+    m = metrics(None, y_pred, y)
+    m.set_metrics()
+    # m.display_metrics()
+
+    metrics_values = m.get_metrics()
+
+    plt.figure(dpi=180)
+    out = color.label2rgb(y_pred, img, kind='avg')
+    out = segmentation.mark_boundaries(out, y_pred, color=(0, 0, 0), mode='thick')
+    ax = plt.gca()
+    ax.imshow(out)
+    ax.tick_params(axis='both', which='both', labelsize=7, pad=0.1,
+                   length=2)  # , bottom=False, left=False, labelbottom=False, labelleft=False
+    ax.set_title(algo_name + ' k=%d' % nc, fontsize=10)
+    ax.set_xlabel(('Recall: %.3f, Precision: %.3f, Time: %.2fs' % (
+        metrics_values['recall'], metrics_values['precision'], (t1 - t0))).lstrip('0'), fontsize=10)
+    plt.savefig(outdir + '%02d' % i_dataset + '_' + img_id + '_' + algo_name + '_' + num_clusters + '_segm.png')
+    plt.close('all')
+
+    return y_pred
+
+
+def get_num_segments(segments):
+    n_labels = []
+    for truth in segments:
+        n_labels.append(len(np.unique(truth)))
+    n_labels = np.array(n_labels)
+
+    return np.array((max(n_labels), min(n_labels), int(n_labels.mean()), int(hmean(n_labels))))
+
+
+def prepare_dataset(img_id, image, gabor_features, img_shape):
+    ground_truth = np.array(get_segment_from_filename(img_id))
+    n_segments = get_num_segments(ground_truth)
+    return (img_id, image, gabor_features, ground_truth, n_segments, img_shape), {}
+
+
+if __name__ == '__main__':
+    np.random.seed(0)
+
+    num_imgs = 7
+
+    hdf5_dir = Path('../../data/hdf5_datasets/')
+
+    if num_imgs is 500:
+        # Path to whole Berkeley image data set
+        hdf5_indir_im = hdf5_dir / 'complete' / 'images'
+        hdf5_indir_feat = hdf5_dir / 'complete' / 'features'
+        num_imgs_dir = 'complete/'
+
+    elif num_imgs is 7:
+        # Path to my 7 favourite images from the Berkeley data set
+        hdf5_indir_im = hdf5_dir / '7images/' / 'images'
+        hdf5_indir_feat = hdf5_dir / '7images/' / 'features'
+        num_imgs_dir = '7images/'
+
+    input_files = os.listdir(hdf5_indir_feat)
+
+    print('Reading Berkeley image data set')
+    t0 = time.time()
+    # Read hdf5 file and extract its information
+    images_file = h5py.File(hdf5_indir_im / "Berkeley_images.h5", "r+")
+    image_vectors = np.array(images_file["/images"])
+    img_shapes = np.array(images_file["/image_shapes"])
+    img_ids = np.array(images_file["/image_ids"])
+
+    features_file = h5py.File(hdf5_indir_feat / input_files[0], "r+")
+    feature_vectors = np.array(features_file["/gabor_features"])
+    feature_shapes = np.array(features_file["/feature_shapes"])
+
+    num_cores = -1
+
+    images = Parallel(n_jobs=num_cores)(
+        delayed(np.reshape)(img, (shape[0], shape[1], shape[2])) for img, shape in zip(image_vectors, img_shapes))
+
+    features = Parallel(n_jobs=num_cores)(
+        delayed(np.reshape)(features, (shape[0], shape[1])) for features, shape in zip(feature_vectors, feature_shapes))
+    t1 = time.time()
+    print('Reading hdf5 image data set time: %.2fs' % (t1 - t0))
+
+    iterator = zip(img_ids, images, features, img_shapes)
+
+    datasets = Parallel(n_jobs=num_cores)(
+        delayed(prepare_dataset)(im_id, image, feature, shape) for im_id, image, feature, shape in iterator)
+
+    default_base = {'n_clusters': 4, 'n_jobs': -1}
+
+    possible_num_clusters = ['max', 'min', 'mean', 'hmean', 'const']
+    for num_clusters in possible_num_clusters:
+        print('\nComputing %s number of cluster: ' % num_clusters)
+        outdir = '../outdir/pixel_level_segmentation/GaussianMixture/' + num_imgs_dir + input_files[0][:-3] + '/' + num_clusters + '_nclusters/'
+
+        if not os.path.exists(outdir):
+            os.makedirs(outdir)
+
+        segmentation_results = Parallel(n_jobs=num_cores)(
+            delayed(clustering_segmentation)(i_dataset + 1, dataset, algo_params, num_clusters) for
+            i_dataset, (dataset, algo_params) in enumerate(datasets))
