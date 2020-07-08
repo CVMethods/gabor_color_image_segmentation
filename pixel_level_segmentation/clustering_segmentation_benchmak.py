@@ -212,7 +212,7 @@ def prepare_dataset(img_id, image, gabor_features, img_shape):
 if __name__ == '__main__':
     np.random.seed(0)
 
-    num_imgs = 7
+    num_imgs = 500
 
     hdf5_dir = Path('../../data/hdf5_datasets/')
 
@@ -229,7 +229,6 @@ if __name__ == '__main__':
         num_imgs_dir = '7images/'
 
     input_files = os.listdir(hdf5_indir_feat)
-
 
     print('Reading Berkeley image data set')
     t0 = time.time()
@@ -274,7 +273,7 @@ if __name__ == '__main__':
     possible_num_clusters = ['max', 'min', 'mean', 'hmean', 'const']
     for num_clusters in possible_num_clusters:
 
-        outdir = 'outdir/' + num_imgs_dir + num_clusters + '_nclusters/'
+        outdir = '../outdir/pixel_level_segmentation/all_methods_benchmark/' + num_imgs_dir + input_files[0][:-3] + '/' + num_clusters + '_nclusters/'
 
         if not os.path.exists(outdir):
             os.makedirs(outdir)
