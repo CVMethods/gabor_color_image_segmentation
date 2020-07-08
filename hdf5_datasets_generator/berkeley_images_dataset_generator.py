@@ -1,11 +1,11 @@
+import os
+import time
 import h5py
-import h5py_cache
 import pdb
+import numpy as np
 
 from pathlib import Path
 from skimage import io
-from source.groundtruth import *
-from scipy.stats import hmean
 
 
 class ImageIndexer(object):
@@ -107,19 +107,19 @@ class ImageIndexer(object):
 
 
 if __name__ == '__main__':
-    num_imgs = 500
-    bsd_path = Path('../data/')
-    hdf5_dir = Path('../data/hdf5_datasets/')
+    num_imgs = 7
+    bsd_path = Path('../../data')
+    hdf5_dir = Path('../../data/hdf5_datasets')
 
     if num_imgs is 500:
         # Path to whole Berkeley image data set
-        bsd_path = bsd_path / 'Berkeley/'
-        hdf5_dir = hdf5_dir / 'complete/'
+        bsd_path = bsd_path / 'Berkeley'
+        hdf5_dir = hdf5_dir / 'complete' / 'images'
 
     elif num_imgs is 7:
         # Path to my 7 favourite images from the Berkeley data set
-        bsd_path = bsd_path / 'myFavorite_BSDimages/'
-        hdf5_dir = hdf5_dir / '7images/'
+        bsd_path = bsd_path / 'myFavorite_BSDimages'
+        hdf5_dir = hdf5_dir / '7images' / 'images'
 
     hdf5_dir.mkdir(parents=True, exist_ok=True)
 
