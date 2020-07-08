@@ -9,25 +9,25 @@ Il n'y a que deux algorithmes assez rapide pour marcher sur les pixels. Cependan
 
 Pour certain, il faut spécifier le nombre de clusters.
 """
-from pathlib import Path
+print(__doc__)
 
+import sys
 import h5py
+import time
+import warnings
+import os
+import pdb
+import numpy as np
+import matplotlib
+matplotlib.use('TKAgg')
+import matplotlib.pyplot as plt
+
+from mpl_toolkits.axes_grid1 import make_axes_locatable
+from pathlib import Path
 from joblib import Parallel, delayed
 from scipy.cluster import vq
 from scipy.stats import hmean
 from sklearn.decomposition import PCA
-from BSD_metrics.groundtruth import *
-
-print(__doc__)
-
-import time, warnings, pdb, os
-
-import numpy as np
-import matplotlib
-from mpl_toolkits.axes_grid1 import make_axes_locatable
-
-matplotlib.use('TKAgg')
-import matplotlib.pyplot as plt
 from skimage import segmentation, color, data
 from skimage.io import imread
 from sklearn import cluster, datasets, mixture
@@ -35,10 +35,11 @@ from sklearn.neighbors import kneighbors_graph
 from sklearn.preprocessing import StandardScaler
 from itertools import cycle, islice
 from petastorm import make_reader
-
 from PIL import Image
-from matplotlib import pyplot as plt
-from BSD_metrics.metrics import *
+
+sys.path.append('../')
+from source.groundtruth import *
+from source.metrics import *
 
 
 def clustering_segmentation_and_metrics(i_dataset, dataset, algo_params, num_clusters):
@@ -211,34 +212,34 @@ def prepare_dataset(img_id, image, gabor_features, img_shape):
 if __name__ == '__main__':
     np.random.seed(0)
 
-    num_imgs = 500
-    ff = 6  # num of frequencies in filter bank
-    aa = 6  # num of angles in filter bank
+    num_imgs = 7
 
-    hdf5_dir = Path('../data/hdf5_datasets/')
+    hdf5_dir = Path('../../data/hdf5_datasets/')
 
     if num_imgs is 500:
         # Path to whole Berkeley image data set
-        hdf5_dir = hdf5_dir / 'complete/'
+        hdf5_indir_im = hdf5_dir / 'complete' / 'images'
+        hdf5_indir_feat = hdf5_dir / 'complete' / 'features'
         num_imgs_dir = 'complete/'
 
     elif num_imgs is 7:
         # Path to my 7 favourite images from the Berkeley data set
-        hdf5_dir = hdf5_dir / '7images/'
+        hdf5_indir_im = hdf5_dir / '7images/' / 'images'
+        hdf5_indir_feat = hdf5_dir / '7images/' / 'features'
         num_imgs_dir = '7images/'
 
-    hdf5_dir.mkdir(parents=True, exist_ok=True)
+    input_files = os.listdir(hdf5_indir_feat)
+
 
     print('Reading Berkeley image data set')
     t0 = time.time()
     # Read hdf5 file and extract its information
-    images_file = h5py.File(hdf5_dir / "Berkeley_images.h5", "r+")
+    images_file = h5py.File(hdf5_indir_im / "Berkeley_images.h5", "r+")
     image_vectors = np.array(images_file["/images"])
     img_shapes = np.array(images_file["/image_shapes"])
     img_ids = np.array(images_file["/image_ids"])
 
-    input_file = 'Berkeley_GaborFeatures_%df_%da.h5' % (ff, aa)
-    features_file = h5py.File(hdf5_dir / input_file, "r+")
+    features_file = h5py.File(hdf5_indir_feat / input_files[0], "r+")
     feature_vectors = np.array(features_file["/gabor_features"])
     feature_shapes = np.array(features_file["/feature_shapes"])
 
