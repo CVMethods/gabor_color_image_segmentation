@@ -1,5 +1,8 @@
 # -*- coding: utf-8 -*-
 # !/usr/bin/env python
+import sys
+
+sys.path.append('../')
 
 import h5py
 import time
@@ -50,7 +53,7 @@ class ImageIndexer(object):
 
         self.feature_shapes_db = self.db.create_dataset(
             "feature_shapes",
-            shape=(self.num_of_images,  2),
+            shape=(self.num_of_images, 2),
             maxshape=(None, 2),
             dtype=np.int64
         )
@@ -105,17 +108,19 @@ def get_gabor_features(img_complex, gabor_filters, r_type, gsmooth, opn, selem_s
 
 if __name__ == '__main__':
     num_imgs = 500
-    hdf5_dir = Path('../data/hdf5_datasets/')
+    hdf5_dir = Path('../../data/hdf5_datasets/')
 
     if num_imgs is 500:
         # Path to whole Berkeley image data set
-        hdf5_dir = hdf5_dir / 'complete/'
+        hdf5_indir = hdf5_dir / 'complete' / 'images'
+        hdf5_outdir = hdf5_dir / 'complete' / 'features'
 
     elif num_imgs is 7:
         # Path to my 7 favourite images from the Berkeley data set
-        hdf5_dir = hdf5_dir / '7images/'
+        hdf5_indir = hdf5_dir / '7images' / 'images'
+        hdf5_outdir = hdf5_dir / '7images' / 'features'
 
-    hdf5_dir.mkdir(parents=True, exist_ok=True)
+    hdf5_outdir.mkdir(parents=True, exist_ok=True)
 
     # Generating Gabor filterbank
     min_period = 2.
@@ -141,7 +146,7 @@ if __name__ == '__main__':
     # Read hdf5 file and extract its information
     print('Reading Berkeley image data set')
     t0 = time.time()
-    file = h5py.File(hdf5_dir / "Berkeley_images.h5", "r+")
+    file = h5py.File(hdf5_indir / "Berkeley_images.h5", "r+")
     img_ids = np.array(file["/image_ids"])
     image_vectors = np.array(file["/images"])
     img_shapes = np.array(file["/image_shapes"])
@@ -163,8 +168,9 @@ if __name__ == '__main__':
     t1 = time.time()
     print('Features computing time (using Parallel joblib): %.2fs' % (t1 - t0))
 
-    output_file = 'Berkeley_GaborFeatures_%df_%da.h5' % (n_freq, n_angles)
-    with ImageIndexer(hdf5_dir / output_file,
+    output_file = 'Berkeley_GaborFeatures_%df_%da_%dp_%dp_%.2ffb_%dab_%.2fcpf_%.2fcpa_%.1fstds.h5' \
+                  % (n_freq, n_angles, min_period, max_period, fb, ab, c1, c2, stds)
+    with ImageIndexer(hdf5_outdir / output_file,
                       buffer_size=num_imgs,
                       num_of_images=num_imgs) as imageindexer:
 
