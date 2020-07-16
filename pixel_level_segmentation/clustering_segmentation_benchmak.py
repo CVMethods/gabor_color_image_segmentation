@@ -289,15 +289,20 @@ if __name__ == '__main__':
 
         for ii in range(len(datasets)):
             algo_metrics = segmentation_metrics[ii]
-            KMeans_metrics.append((algo_metrics[0]['recall'], algo_metrics[0]['precision']))
-            MiniBatchKMeans_metrics.append((algo_metrics[1]['recall'], algo_metrics[1]['precision']))
-            Birch_metrics.append((algo_metrics[2]['recall'], algo_metrics[2]['precision']))
-            GaussianMixture_metrics.append((algo_metrics[3]['recall'], algo_metrics[3]['precision']))
+            KMeans_metrics.append((algo_metrics[0]['recall'], algo_metrics[0]['precision'], algo_metrics[0]['underseg'], algo_metrics[0]['undersegNP'], algo_metrics[0]['compactness'], algo_metrics[0]['density']))
+            MiniBatchKMeans_metrics.append((algo_metrics[1]['recall'], algo_metrics[1]['precision'], algo_metrics[0]['underseg'], algo_metrics[0]['undersegNP'], algo_metrics[0]['compactness'], algo_metrics[0]['density']))
+            Birch_metrics.append((algo_metrics[2]['recall'], algo_metrics[2]['precision'], algo_metrics[0]['underseg'], algo_metrics[0]['undersegNP'], algo_metrics[0]['compactness'], algo_metrics[0]['density']))
+            GaussianMixture_metrics.append((algo_metrics[3]['recall'], algo_metrics[3]['precision'], algo_metrics[0]['underseg'], algo_metrics[0]['undersegNP'], algo_metrics[0]['compactness'], algo_metrics[0]['density']))
 
         KMeans_metrics = np.array(KMeans_metrics)
         MiniBatchKMeans_metrics = np.array(MiniBatchKMeans_metrics)
         Birch_metrics = np.array(Birch_metrics)
         GaussianMixture_metrics = np.array(GaussianMixture_metrics)
+
+        np.savetxt(outdir + 'KMeans_metrics.csv', np.column_stack((img_ids, KMeans_metrics)), delimiter=',', fmt=['%s', '%f', '%f', '%f', '%f', '%f', '%f'], header='img ID, recall, precision, undersegmentation Bergh, undersegmentation NP, compactness, density', comments='')
+        np.savetxt(outdir + 'MiniBatchKMeans_metrics.csv', np.column_stack((img_ids, MiniBatchKMeans_metrics)), delimiter=',', fmt=['%s', '%f', '%f', '%f', '%f', '%f', '%f'], header='img ID, recall, precision, undersegmentation Bergh, undersegmentation NP, compactness, density', comments='')
+        np.savetxt(outdir + 'Birch_metrics.csv', np.column_stack((img_ids, Birch_metrics)), delimiter=',', fmt=['%s', '%f', '%f', '%f', '%f', '%f', '%f'], header='img ID, recall, precision, undersegmentation Bergh, undersegmentation NP, compactness, density', comments='')
+        np.savetxt(outdir + 'GaussianMixture_metrics.csv', np.column_stack((img_ids, GaussianMixture_metrics)), delimiter=',', fmt=['%s', '%f', '%f', '%f', '%f', '%f', '%f'], header='img ID, recall, precision, undersegmentation Bergh, undersegmentation NP, compactness, density', comments='')
 
         algorithms_metrics = [KMeans_metrics, MiniBatchKMeans_metrics, Birch_metrics, GaussianMixture_metrics]
         algorithms_names = ['KMeans', 'MiniBatchKMeans', 'Birch', 'GaussianMixture']
