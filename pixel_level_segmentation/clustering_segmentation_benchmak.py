@@ -245,87 +245,87 @@ if __name__ == '__main__':
 
     input_files = os.listdir(hdf5_indir_feat)
     for features_input_file in input_files:
-        print('Reading Berkeley features data set')
-        print('File name: ', features_input_file)
-        t0 = time.time()
-        features_file = h5py.File(hdf5_indir_feat / features_input_file, "r+")
-        feature_vectors = np.array(features_file["/gabor_features"])
-        feature_shapes = np.array(features_file["/feature_shapes"])
+        with h5py.File(hdf5_indir_feat / features_input_file, "r+") as features_file:
+            print('Reading Berkeley features data set')
+            print('File name: ', features_input_file)
+            t0 = time.time()
+            feature_vectors = np.array(features_file["/gabor_features"])
+            feature_shapes = np.array(features_file["/feature_shapes"])
 
-        features = Parallel(n_jobs=num_cores)(
-            delayed(np.reshape)(features, (shape[0], shape[1])) for features, shape in zip(feature_vectors, feature_shapes))
-        t1 = time.time()
-        print('Reading hdf5 features data set time: %.2fs' % (t1 - t0))
+            features = Parallel(n_jobs=num_cores)(
+                delayed(np.reshape)(features, (shape[0], shape[1])) for features, shape in zip(feature_vectors, feature_shapes))
+            t1 = time.time()
+            print('Reading hdf5 features data set time: %.2fs' % (t1 - t0))
 
-        iterator = zip(img_ids, images, features, img_shapes)
+            iterator = zip(img_ids, images, features, img_shapes)
 
-        datasets = Parallel(n_jobs=num_cores)(
-            delayed(prepare_dataset)(im_id, image, feature, shape) for im_id, image, feature, shape in iterator)
+            datasets = Parallel(n_jobs=num_cores)(
+                delayed(prepare_dataset)(im_id, image, feature, shape) for im_id, image, feature, shape in iterator)
 
-        default_base = {'quantile': .3,
-                        'eps': .3,
-                        'damping': .9,
-                        'preference': -200,
-                        'n_neighbors': 10,
-                        'n_clusters': 4,
-                        'min_samples': 20,
-                        'xi': 0.05,
-                        'min_cluster_size': 0.1,
-                        'n_jobs': 10}
+            default_base = {'quantile': .3,
+                            'eps': .3,
+                            'damping': .9,
+                            'preference': -200,
+                            'n_neighbors': 10,
+                            'n_clusters': 4,
+                            'min_samples': 20,
+                            'xi': 0.05,
+                            'min_cluster_size': 0.1,
+                            'n_jobs': 10}
 
-        possible_num_clusters = ['max', 'min', 'mean', 'hmean', 'const']
-        for num_clusters in possible_num_clusters:
+            possible_num_clusters = ['max', 'min', 'mean', 'hmean', 'const']
+            for num_clusters in possible_num_clusters:
 
-            outdir = '../outdir/pixel_level_segmentation/all_methods_benchmark/' + num_imgs_dir + features_input_file[:-3] + '/' + num_clusters + '_nclusters/'
+                outdir = '../outdir/pixel_level_segmentation/all_methods_benchmark/' + num_imgs_dir + features_input_file[:-3] + '/' + num_clusters + '_nclusters/'
 
-            if not os.path.exists(outdir):
-                os.makedirs(outdir)
+                if not os.path.exists(outdir):
+                    os.makedirs(outdir)
 
-            segmentation_metrics = Parallel(n_jobs=num_cores, prefer='processes')(
-                delayed(clustering_segmentation_and_metrics)(i_dataset + 1, dataset, algo_params, num_clusters) for
-                i_dataset, (dataset, algo_params) in enumerate(datasets))
+                segmentation_metrics = Parallel(n_jobs=num_cores, prefer='processes')(
+                    delayed(clustering_segmentation_and_metrics)(i_dataset + 1, dataset, algo_params, num_clusters) for
+                    i_dataset, (dataset, algo_params) in enumerate(datasets))
 
-            KMeans_metrics = []
-            MiniBatchKMeans_metrics = []
-            Birch_metrics = []
-            GaussianMixture_metrics = []
+                KMeans_metrics = []
+                MiniBatchKMeans_metrics = []
+                Birch_metrics = []
+                GaussianMixture_metrics = []
 
-            for ii in range(len(datasets)):
-                algo_metrics = segmentation_metrics[ii]
-                KMeans_metrics.append((algo_metrics[0]['recall'], algo_metrics[0]['precision'], algo_metrics[0]['underseg'], algo_metrics[0]['undersegNP'], algo_metrics[0]['compactness'], algo_metrics[0]['density']))
-                MiniBatchKMeans_metrics.append((algo_metrics[1]['recall'], algo_metrics[1]['precision'], algo_metrics[0]['underseg'], algo_metrics[0]['undersegNP'], algo_metrics[0]['compactness'], algo_metrics[0]['density']))
-                Birch_metrics.append((algo_metrics[2]['recall'], algo_metrics[2]['precision'], algo_metrics[0]['underseg'], algo_metrics[0]['undersegNP'], algo_metrics[0]['compactness'], algo_metrics[0]['density']))
-                GaussianMixture_metrics.append((algo_metrics[3]['recall'], algo_metrics[3]['precision'], algo_metrics[0]['underseg'], algo_metrics[0]['undersegNP'], algo_metrics[0]['compactness'], algo_metrics[0]['density']))
+                for ii in range(len(datasets)):
+                    algo_metrics = segmentation_metrics[ii]
+                    KMeans_metrics.append((algo_metrics[0]['recall'], algo_metrics[0]['precision'], algo_metrics[0]['underseg'], algo_metrics[0]['undersegNP'], algo_metrics[0]['compactness'], algo_metrics[0]['density']))
+                    MiniBatchKMeans_metrics.append((algo_metrics[1]['recall'], algo_metrics[1]['precision'], algo_metrics[0]['underseg'], algo_metrics[0]['undersegNP'], algo_metrics[0]['compactness'], algo_metrics[0]['density']))
+                    Birch_metrics.append((algo_metrics[2]['recall'], algo_metrics[2]['precision'], algo_metrics[0]['underseg'], algo_metrics[0]['undersegNP'], algo_metrics[0]['compactness'], algo_metrics[0]['density']))
+                    GaussianMixture_metrics.append((algo_metrics[3]['recall'], algo_metrics[3]['precision'], algo_metrics[0]['underseg'], algo_metrics[0]['undersegNP'], algo_metrics[0]['compactness'], algo_metrics[0]['density']))
 
-            KMeans_metrics = np.array(KMeans_metrics)
-            MiniBatchKMeans_metrics = np.array(MiniBatchKMeans_metrics)
-            Birch_metrics = np.array(Birch_metrics)
-            GaussianMixture_metrics = np.array(GaussianMixture_metrics)
+                KMeans_metrics = np.array(KMeans_metrics)
+                MiniBatchKMeans_metrics = np.array(MiniBatchKMeans_metrics)
+                Birch_metrics = np.array(Birch_metrics)
+                GaussianMixture_metrics = np.array(GaussianMixture_metrics)
 
-            np.savetxt(outdir + 'KMeans_metrics.csv', np.column_stack((img_ids, KMeans_metrics)), delimiter=',', fmt=['%s', '%f', '%f', '%f', '%f', '%f', '%f'], header='img ID, recall, precision, undersegmentation Bergh, undersegmentation NP, compactness, density', comments='')
-            np.savetxt(outdir + 'MiniBatchKMeans_metrics.csv', np.column_stack((img_ids, MiniBatchKMeans_metrics)), delimiter=',', fmt=['%s', '%f', '%f', '%f', '%f', '%f', '%f'], header='img ID, recall, precision, undersegmentation Bergh, undersegmentation NP, compactness, density', comments='')
-            np.savetxt(outdir + 'Birch_metrics.csv', np.column_stack((img_ids, Birch_metrics)), delimiter=',', fmt=['%s', '%f', '%f', '%f', '%f', '%f', '%f'], header='img ID, recall, precision, undersegmentation Bergh, undersegmentation NP, compactness, density', comments='')
-            np.savetxt(outdir + 'GaussianMixture_metrics.csv', np.column_stack((img_ids, GaussianMixture_metrics)), delimiter=',', fmt=['%s', '%f', '%f', '%f', '%f', '%f', '%f'], header='img ID, recall, precision, undersegmentation Bergh, undersegmentation NP, compactness, density', comments='')
+                np.savetxt(outdir + 'KMeans_metrics.csv', np.column_stack((img_ids, KMeans_metrics)), delimiter=',', fmt=['%s', '%f', '%f', '%f', '%f', '%f', '%f'], header='img ID, recall, precision, undersegmentation Bergh, undersegmentation NP, compactness, density', comments='')
+                np.savetxt(outdir + 'MiniBatchKMeans_metrics.csv', np.column_stack((img_ids, MiniBatchKMeans_metrics)), delimiter=',', fmt=['%s', '%f', '%f', '%f', '%f', '%f', '%f'], header='img ID, recall, precision, undersegmentation Bergh, undersegmentation NP, compactness, density', comments='')
+                np.savetxt(outdir + 'Birch_metrics.csv', np.column_stack((img_ids, Birch_metrics)), delimiter=',', fmt=['%s', '%f', '%f', '%f', '%f', '%f', '%f'], header='img ID, recall, precision, undersegmentation Bergh, undersegmentation NP, compactness, density', comments='')
+                np.savetxt(outdir + 'GaussianMixture_metrics.csv', np.column_stack((img_ids, GaussianMixture_metrics)), delimiter=',', fmt=['%s', '%f', '%f', '%f', '%f', '%f', '%f'], header='img ID, recall, precision, undersegmentation Bergh, undersegmentation NP, compactness, density', comments='')
 
-            algorithms_metrics = [KMeans_metrics, MiniBatchKMeans_metrics, Birch_metrics, GaussianMixture_metrics]
-            algorithms_names = ['KMeans', 'MiniBatchKMeans', 'Birch', 'GaussianMixture']
+                algorithms_metrics = [KMeans_metrics, MiniBatchKMeans_metrics, Birch_metrics, GaussianMixture_metrics]
+                algorithms_names = ['KMeans', 'MiniBatchKMeans', 'Birch', 'GaussianMixture']
 
-            for name, result_metrics in zip(algorithms_names, algorithms_metrics):
-                recall = result_metrics[:, 0]
-                precision = result_metrics[:, 1]
+                for name, result_metrics in zip(algorithms_names, algorithms_metrics):
+                    recall = result_metrics[:, 0]
+                    precision = result_metrics[:, 1]
 
-                plt.figure(dpi=180)
-                plt.plot(np.arange(len(datasets)) + 1, recall, '-o', c='k', label='recall')
-                plt.plot(np.arange(len(datasets)) + 1, precision, '-o', c='r', label='precision')
-                plt.title(name + ' P/R histogram ' + num_clusters + ' nclusters')
-                plt.xlabel(
-                    'Rmax: %.3f, Rmin: %.3f, Rmean: %.3f, Rmed: %.3f, Rstd: %.3f \n Pmax: %.3f, Pmin: %.3f, Pmean: %.3f, '
-                    'Pmed: %.3f, Pstd: %.3f ' % (recall.max(), recall.min(), recall.mean(), np.median(recall), recall.std(),
-                                                 precision.max(), precision.min(), precision.mean(), np.median(precision),
-                                                 precision.std()))
-                plt.ylim(0, 1.05)
-                plt.legend()
-                plt.grid()
-                plt.savefig(outdir + name + '_PR_hist_' + num_clusters + '_nclusters.png', bbox_inches='tight')
+                    plt.figure(dpi=180)
+                    plt.plot(np.arange(len(datasets)) + 1, recall, '-o', c='k', label='recall')
+                    plt.plot(np.arange(len(datasets)) + 1, precision, '-o', c='r', label='precision')
+                    plt.title(name + ' P/R histogram ' + num_clusters + ' nclusters')
+                    plt.xlabel(
+                        'Rmax: %.3f, Rmin: %.3f, Rmean: %.3f, Rmed: %.3f, Rstd: %.3f \n Pmax: %.3f, Pmin: %.3f, Pmean: %.3f, '
+                        'Pmed: %.3f, Pstd: %.3f ' % (recall.max(), recall.min(), recall.mean(), np.median(recall), recall.std(),
+                                                     precision.max(), precision.min(), precision.mean(), np.median(precision),
+                                                     precision.std()))
+                    plt.ylim(0, 1.05)
+                    plt.legend()
+                    plt.grid()
+                    plt.savefig(outdir + name + '_PR_hist_' + num_clusters + '_nclusters.png', bbox_inches='tight')
 
-                plt.close('all')
+                    plt.close('all')
