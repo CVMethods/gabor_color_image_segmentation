@@ -185,8 +185,6 @@ def clustering_segmentation_and_metrics(i_dataset, dataset, algo_params, num_clu
         # cb.ax.set_yticklabels([r'${{{}}}$'.format(val) for val in range(nc)])
         plt.savefig(outdir + '%02d' % i_dataset + '_' + img_id + '_' + algo_name + '_' + num_clusters + '_segm.png')
 
-        plt.close('all')
-
         img_metrics.append(metrics_values)
         segmentations.append(y_pred)
 
@@ -328,4 +326,4 @@ if __name__ == '__main__':
                     plt.grid()
                     plt.savefig(outdir + name + '_PR_hist_' + num_clusters + '_nclusters.png', bbox_inches='tight')
 
-                    plt.close('all')
+        plt.close('all')
