@@ -276,7 +276,7 @@ if __name__ == '__main__':
             possible_num_clusters = ['max', 'min', 'mean', 'hmean', 'const']
             for num_clusters in possible_num_clusters:
 
-                outdir = '../outdir/pixel_level_segmentation/all_methods_benchmark/' + num_imgs_dir + features_input_file[:-3] + '/' + num_clusters + '_nclusters/'
+                outdir = '../outdir/pixel_level_segmentation/' + num_imgs_dir + 'all_methods_benchmark/' + features_input_file[:-3] + '/' + num_clusters + '_nclusters/'
 
                 if not os.path.exists(outdir):
                     os.makedirs(outdir)
@@ -293,9 +293,9 @@ if __name__ == '__main__':
                 for ii in range(len(datasets)):
                     algo_metrics = segmentation_metrics[ii]
                     KMeans_metrics.append((algo_metrics[0]['recall'], algo_metrics[0]['precision'], algo_metrics[0]['underseg'], algo_metrics[0]['undersegNP'], algo_metrics[0]['compactness'], algo_metrics[0]['density']))
-                    MiniBatchKMeans_metrics.append((algo_metrics[1]['recall'], algo_metrics[1]['precision'], algo_metrics[0]['underseg'], algo_metrics[0]['undersegNP'], algo_metrics[0]['compactness'], algo_metrics[0]['density']))
-                    Birch_metrics.append((algo_metrics[2]['recall'], algo_metrics[2]['precision'], algo_metrics[0]['underseg'], algo_metrics[0]['undersegNP'], algo_metrics[0]['compactness'], algo_metrics[0]['density']))
-                    GaussianMixture_metrics.append((algo_metrics[3]['recall'], algo_metrics[3]['precision'], algo_metrics[0]['underseg'], algo_metrics[0]['undersegNP'], algo_metrics[0]['compactness'], algo_metrics[0]['density']))
+                    MiniBatchKMeans_metrics.append((algo_metrics[1]['recall'], algo_metrics[1]['precision'], algo_metrics[1]['underseg'], algo_metrics[1]['undersegNP'], algo_metrics[1]['compactness'], algo_metrics[1]['density']))
+                    Birch_metrics.append((algo_metrics[2]['recall'], algo_metrics[2]['precision'], algo_metrics[2]['underseg'], algo_metrics[2]['undersegNP'], algo_metrics[2]['compactness'], algo_metrics[2]['density']))
+                    GaussianMixture_metrics.append((algo_metrics[3]['recall'], algo_metrics[3]['precision'], algo_metrics[3]['underseg'], algo_metrics[3]['undersegNP'], algo_metrics[3]['compactness'], algo_metrics[3]['density']))
 
                 KMeans_metrics = np.array(KMeans_metrics)
                 MiniBatchKMeans_metrics = np.array(MiniBatchKMeans_metrics)
