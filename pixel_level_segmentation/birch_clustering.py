@@ -17,7 +17,7 @@ from source.groundtruth import *
 from source.metrics import *
 
 
-def clustering_segmentation(i_dataset, dataset, algo_params, num_clusters):
+def clustering_segmentation(i_dataset, dataset, algo_params, num_clusters, algo_name):
     # update parameters with dataset-specific values
     params = default_base.copy()
     params.update(algo_params)
@@ -56,7 +56,6 @@ def clustering_segmentation(i_dataset, dataset, algo_params, num_clusters):
 
     # Create cluster object
     algorithm = cluster.Birch(n_clusters=params['n_clusters'])
-    algo_name = 'Birch'
 
     t0 = time.time()
     algorithm.fit(X)
@@ -88,9 +87,35 @@ def clustering_segmentation(i_dataset, dataset, algo_params, num_clusters):
     ax.set_xlabel(('Recall: %.3f, Precision: %.3f, Time: %.2fs' % (
         metrics_values['recall'], metrics_values['precision'], (t1 - t0))).lstrip('0'), fontsize=10)
     plt.savefig(outdir + '%02d' % i_dataset + '_' + img_id + '_' + algo_name + '_' + num_clusters + '_segm.png')
-    plt.close('all')
 
-    return y_pred
+    return metrics_values  # y_pred
+
+
+def save_plot_metrics(ids, metrics, algo_name):
+    algorithm_metrics = np.array(metrics)
+
+    np.savetxt(outdir + algo_name + '_metrics.csv', np.column_stack((ids, algorithm_metrics)), delimiter=',',
+               fmt=['%s', '%f', '%f', '%f', '%f', '%f', '%f'],
+               header='img ID, recall, precision, undersegmentation Bergh, undersegmentation NP, compactness, density',
+               comments='')
+
+    recall = algorithm_metrics[:, 0]
+    precision = algorithm_metrics[:, 1]
+
+    plt.figure(dpi=180)
+    plt.plot(np.arange(len(datasets)) + 1, recall, '-o', c='k', label='recall')
+    plt.plot(np.arange(len(datasets)) + 1, precision, '-o', c='r', label='precision')
+    plt.title(algo_name + ' P/R histogram ' + num_clusters + ' nclusters')
+    plt.xlabel(
+        'Rmax: %.3f, Rmin: %.3f, Rmean: %.3f, Rmed: %.3f, Rstd: %.3f \n Pmax: %.3f, Pmin: %.3f, Pmean: %.3f, '
+        'Pmed: %.3f, Pstd: %.3f ' % (
+            recall.max(), recall.min(), recall.mean(), np.median(recall), recall.std(),
+            precision.max(), precision.min(), precision.mean(), np.median(precision),
+            precision.std()))
+    plt.ylim(0, 1.05)
+    plt.legend()
+    plt.grid()
+    plt.savefig(outdir + algo_name + '_PR_hist_' + num_clusters + '_nclusters.png', bbox_inches='tight')
 
 
 def get_num_segments(segments):
@@ -165,13 +190,28 @@ if __name__ == '__main__':
             default_base = {'n_clusters': 4, 'n_jobs': -1}
 
             possible_num_clusters = ['max', 'min', 'mean', 'hmean', 'const']
+            algo_name = 'Birch'
+
             for num_clusters in possible_num_clusters:
                 print('\nComputing %s number of cluster: ' % num_clusters)
-                outdir = '../outdir/pixel_level_segmentation/Birch/' + num_imgs_dir + input_files[0][:-3] + '/' + num_clusters + '_nclusters/'
+                outdir = '../outdir/pixel_level_segmentation/' + num_imgs_dir + algo_name + '/' + features_input_file[
+                                                                                                  :-3] + '/' + num_clusters + '_nclusters/'
 
                 if not os.path.exists(outdir):
                     os.makedirs(outdir)
 
-                segmentation_results = Parallel(n_jobs=num_cores)(
-                    delayed(clustering_segmentation)(i_dataset + 1, dataset, algo_params, num_clusters) for
+                segmentation_metrics = Parallel(n_jobs=num_cores, prefer='processes')(
+                    delayed(clustering_segmentation)(i_dataset + 1, dataset, algo_params, num_clusters, algo_name) for
                     i_dataset, (dataset, algo_params) in enumerate(datasets))
+
+                algorithm_metrics = []
+
+                for ii in range(len(datasets)):
+                    algorithm_metrics.append((segmentation_metrics[ii]['recall'], segmentation_metrics[ii]['precision'],
+                                              segmentation_metrics[ii]['underseg'],
+                                              segmentation_metrics[ii]['undersegNP'],
+                                              segmentation_metrics[ii]['compactness'],
+                                              segmentation_metrics[ii]['density']))
+
+                save_plot_metrics(img_ids, algorithm_metrics, algo_name)
+        plt.close('all')
