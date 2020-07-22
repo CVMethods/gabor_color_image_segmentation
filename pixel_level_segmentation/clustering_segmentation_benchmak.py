@@ -19,7 +19,7 @@ import os
 import pdb
 import numpy as np
 import matplotlib
-matplotlib.use('TKAgg')
+matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 
 from mpl_toolkits.axes_grid1 import make_axes_locatable
@@ -184,6 +184,9 @@ def clustering_segmentation_and_metrics(i_dataset, dataset, algo_params, num_clu
         # cb.ax.tick_params(labelsize=6)
         # cb.ax.set_yticklabels([r'${{{}}}$'.format(val) for val in range(nc)])
         plt.savefig(outdir + '%02d' % i_dataset + '_' + img_id + '_' + algo_name + '_' + num_clusters + '_segm.png')
+        plt.cla()
+        plt.clf()
+        plt.close()
 
         img_metrics.append(metrics_values)
         segmentations.append(y_pred)
@@ -325,5 +328,6 @@ if __name__ == '__main__':
                     plt.legend()
                     plt.grid()
                     plt.savefig(outdir + name + '_PR_hist_' + num_clusters + '_nclusters.png', bbox_inches='tight')
-
-        plt.close('all')
+                    plt.cla()
+                    plt.clf()
+                    plt.close()

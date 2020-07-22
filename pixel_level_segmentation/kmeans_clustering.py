@@ -1,7 +1,7 @@
 import sys
 import h5py
 import matplotlib
-matplotlib.use('TKAgg')
+matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 
 from pathlib import Path
@@ -87,7 +87,10 @@ def clustering_segmentation(i_dataset, dataset, algo_params, num_clusters, algo_
     ax.set_xlabel(('Recall: %.3f, Precision: %.3f, Time: %.2fs' % (
         metrics_values['recall'], metrics_values['precision'], (t1 - t0))).lstrip('0'), fontsize=10)
     plt.savefig(outdir + '%02d' % i_dataset + '_' + img_id + '_' + algo_name + '_' + num_clusters + '_segm.png')
-
+    plt.cla()
+    plt.clf()
+    plt.close()
+    
     return metrics_values  # y_pred
 
 
@@ -116,7 +119,9 @@ def save_plot_metrics(ids, metrics, algo_name):
     plt.legend()
     plt.grid()
     plt.savefig(outdir + algo_name + '_PR_hist_' + num_clusters + '_nclusters.png', bbox_inches='tight')
-
+    plt.cla()
+    plt.clf()
+    plt.close()
 
 def get_num_segments(segments):
     n_labels = []
@@ -214,4 +219,3 @@ if __name__ == '__main__':
                                               segmentation_metrics[ii]['density']))
 
                 save_plot_metrics(img_ids, algorithm_metrics, algo_name)
-        plt.close('all')
