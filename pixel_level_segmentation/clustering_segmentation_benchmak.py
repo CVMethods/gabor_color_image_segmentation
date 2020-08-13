@@ -21,6 +21,8 @@ import numpy as np
 import matplotlib
 matplotlib.use('Agg')
 import matplotlib.pyplot as plt
+import pandas as pd
+import seaborn as sns
 
 from mpl_toolkits.axes_grid1 import make_axes_locatable
 from pathlib import Path
@@ -214,7 +216,7 @@ if __name__ == '__main__':
     np.random.seed(0)
     num_cores = -1
 
-    num_imgs = 500
+    num_imgs = 7
 
     hdf5_dir = Path('../../data/hdf5_datasets/')
 
@@ -229,6 +231,12 @@ if __name__ == '__main__':
         hdf5_indir_im = hdf5_dir / '7images/' / 'images'
         hdf5_indir_feat = hdf5_dir / '7images/' / 'features'
         num_imgs_dir = '7images/'
+
+    elif num_imgs is 25:
+        # Path to my 7 favourite images from the Berkeley data set
+        hdf5_indir_im = hdf5_dir / '25images/' / 'images'
+        hdf5_indir_feat = hdf5_dir / '25images/' / 'features'
+        num_imgs_dir = '25images/'
 
     print('Reading Berkeley image data set')
     t0 = time.time()
@@ -290,6 +298,8 @@ if __name__ == '__main__':
                 MiniBatchKMeans_metrics = []
                 Birch_metrics = []
                 GaussianMixture_metrics = []
+                all_precisions = []
+                all_recalls = []
 
                 for ii in range(len(datasets)):
                     algo_metrics = segmentation_metrics[ii]
@@ -297,6 +307,9 @@ if __name__ == '__main__':
                     MiniBatchKMeans_metrics.append((algo_metrics[1]['recall'], algo_metrics[1]['precision'], algo_metrics[1]['underseg'], algo_metrics[1]['undersegNP'], algo_metrics[1]['compactness'], algo_metrics[1]['density']))
                     Birch_metrics.append((algo_metrics[2]['recall'], algo_metrics[2]['precision'], algo_metrics[2]['underseg'], algo_metrics[2]['undersegNP'], algo_metrics[2]['compactness'], algo_metrics[2]['density']))
                     GaussianMixture_metrics.append((algo_metrics[3]['recall'], algo_metrics[3]['precision'], algo_metrics[3]['underseg'], algo_metrics[3]['undersegNP'], algo_metrics[3]['compactness'], algo_metrics[3]['density']))
+
+                    all_precisions.extend([algo_metrics[0]['precision'], algo_metrics[1]['precision'], algo_metrics[2]['precision'], algo_metrics[3]['precision']])
+                    all_recalls.extend([algo_metrics[0]['recall'], algo_metrics[1]['recall'], algo_metrics[2]['recall'], algo_metrics[3]['recall']])
 
                 KMeans_metrics = np.array(KMeans_metrics)
                 MiniBatchKMeans_metrics = np.array(MiniBatchKMeans_metrics)
@@ -310,6 +323,16 @@ if __name__ == '__main__':
 
                 algorithms_metrics = [KMeans_metrics, MiniBatchKMeans_metrics, Birch_metrics, GaussianMixture_metrics]
                 algorithms_names = ['KMeans', 'MiniBatchKMeans', 'Birch', 'GaussianMixture']
+
+                score_method_names = algorithms_names * len(datasets)
+                df = pd.DataFrame({'Method': score_method_names, 'Precision': all_precisions, 'Recall': all_recalls})
+                df = df[['Method', 'Precision', 'Recall']]
+                dd = pd.melt(df, id_vars=['Method'], value_vars=['Precision', 'Recall'], var_name='scores')
+
+                plt.figure(dpi=180)
+                sns.boxplot(x='Method', y='value', data=dd, hue='scores')
+                plt.title('Precision / Recall box plot ' + num_clusters + ' nclusters')
+                plt.savefig(outdir + 'PrecisionRecall_boxplot_' + num_clusters + '_nclusters.png', bbox_inches='tight')
 
                 for name, result_metrics in zip(algorithms_names, algorithms_metrics):
                     recall = result_metrics[:, 0]
