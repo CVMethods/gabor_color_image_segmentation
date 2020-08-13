@@ -121,6 +121,11 @@ if __name__ == '__main__':
         hdf5_indir = hdf5_dir / '7images' / 'images'
         hdf5_outdir = hdf5_dir / '7images' / 'features'
 
+    elif num_imgs is 25:
+        # Path to 25 images from the Berkeley data set
+        hdf5_indir = hdf5_dir / '25images' / 'images'
+        hdf5_outdir = hdf5_dir / '25images' / 'features'
+
     hdf5_outdir.mkdir(parents=True, exist_ok=True)
 
     # Generating Gabor filterbank

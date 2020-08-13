@@ -121,6 +121,11 @@ if __name__ == '__main__':
         bsd_path = bsd_path / 'myFavorite_BSDimages'
         hdf5_dir = hdf5_dir / '7images' / 'images'
 
+    elif num_imgs is 25:
+        # Path to 25 images from the Berkeley data set
+        bsd_path = bsd_path / '25_BSDimages'
+        hdf5_dir = hdf5_dir / '25images' / 'images'
+
     hdf5_dir.mkdir(parents=True, exist_ok=True)
 
     with ImageIndexer(hdf5_dir / "Berkeley_images.h5",
