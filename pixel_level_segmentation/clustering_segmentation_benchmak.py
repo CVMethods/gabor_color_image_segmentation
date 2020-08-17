@@ -9,25 +9,27 @@ Il n'y a que deux algorithmes assez rapide pour marcher sur les pixels. Cependan
 
 Pour certain, il faut spécifier le nombre de clusters.
 """
-from pathlib import Path
+print(__doc__)
 
+import sys
 import h5py
+import time
+import warnings
+import os
+import pdb
+import numpy as np
+import matplotlib
+matplotlib.use('Agg')
+import matplotlib.pyplot as plt
+import pandas as pd
+import seaborn as sns
+
+from mpl_toolkits.axes_grid1 import make_axes_locatable
+from pathlib import Path
 from joblib import Parallel, delayed
 from scipy.cluster import vq
 from scipy.stats import hmean
 from sklearn.decomposition import PCA
-from BSD_metrics.groundtruth import *
-
-print(__doc__)
-
-import time, warnings, pdb, os
-
-import numpy as np
-import matplotlib
-from mpl_toolkits.axes_grid1 import make_axes_locatable
-
-matplotlib.use('TKAgg')
-import matplotlib.pyplot as plt
 from skimage import segmentation, color, data
 from skimage.io import imread
 from sklearn import cluster, datasets, mixture
@@ -35,10 +37,11 @@ from sklearn.neighbors import kneighbors_graph
 from sklearn.preprocessing import StandardScaler
 from itertools import cycle, islice
 from petastorm import make_reader
-
 from PIL import Image
-from matplotlib import pyplot as plt
-from BSD_metrics.metrics import *
+
+sys.path.append('../')
+from source.groundtruth import *
+from source.metrics import *
 
 
 def clustering_segmentation_and_metrics(i_dataset, dataset, algo_params, num_clusters):
@@ -183,8 +186,9 @@ def clustering_segmentation_and_metrics(i_dataset, dataset, algo_params, num_clu
         # cb.ax.tick_params(labelsize=6)
         # cb.ax.set_yticklabels([r'${{{}}}$'.format(val) for val in range(nc)])
         plt.savefig(outdir + '%02d' % i_dataset + '_' + img_id + '_' + algo_name + '_' + num_clusters + '_segm.png')
-
-        plt.close('all')
+        plt.cla()
+        plt.clf()
+        plt.close()
 
         img_metrics.append(metrics_values)
         segmentations.append(y_pred)
@@ -210,114 +214,143 @@ def prepare_dataset(img_id, image, gabor_features, img_shape):
 
 if __name__ == '__main__':
     np.random.seed(0)
+    num_cores = -1
 
-    num_imgs = 500
-    ff = 6  # num of frequencies in filter bank
-    aa = 6  # num of angles in filter bank
+    num_imgs = 7
 
-    hdf5_dir = Path('../data/hdf5_datasets/')
+    hdf5_dir = Path('../../data/hdf5_datasets/')
 
     if num_imgs is 500:
         # Path to whole Berkeley image data set
-        hdf5_dir = hdf5_dir / 'complete/'
+        hdf5_indir_im = hdf5_dir / 'complete' / 'images'
+        hdf5_indir_feat = hdf5_dir / 'complete' / 'features'
         num_imgs_dir = 'complete/'
 
     elif num_imgs is 7:
         # Path to my 7 favourite images from the Berkeley data set
-        hdf5_dir = hdf5_dir / '7images/'
+        hdf5_indir_im = hdf5_dir / '7images/' / 'images'
+        hdf5_indir_feat = hdf5_dir / '7images/' / 'features'
         num_imgs_dir = '7images/'
 
-    hdf5_dir.mkdir(parents=True, exist_ok=True)
+    elif num_imgs is 25:
+        # Path to my 7 favourite images from the Berkeley data set
+        hdf5_indir_im = hdf5_dir / '25images/' / 'images'
+        hdf5_indir_feat = hdf5_dir / '25images/' / 'features'
+        num_imgs_dir = '25images/'
 
     print('Reading Berkeley image data set')
     t0 = time.time()
     # Read hdf5 file and extract its information
-    images_file = h5py.File(hdf5_dir / "Berkeley_images.h5", "r+")
+    images_file = h5py.File(hdf5_indir_im / "Berkeley_images.h5", "r+")
     image_vectors = np.array(images_file["/images"])
     img_shapes = np.array(images_file["/image_shapes"])
     img_ids = np.array(images_file["/image_ids"])
 
-    input_file = 'Berkeley_GaborFeatures_%df_%da.h5' % (ff, aa)
-    features_file = h5py.File(hdf5_dir / input_file, "r+")
-    feature_vectors = np.array(features_file["/gabor_features"])
-    feature_shapes = np.array(features_file["/feature_shapes"])
-
-    num_cores = -1
-
     images = Parallel(n_jobs=num_cores)(
         delayed(np.reshape)(img, (shape[0], shape[1], shape[2])) for img, shape in zip(image_vectors, img_shapes))
 
-    features = Parallel(n_jobs=num_cores)(
-        delayed(np.reshape)(features, (shape[0], shape[1])) for features, shape in zip(feature_vectors, feature_shapes))
     t1 = time.time()
     print('Reading hdf5 image data set time: %.2fs' % (t1 - t0))
 
-    iterator = zip(img_ids, images, features, img_shapes)
+    input_files = os.listdir(hdf5_indir_feat)
+    for features_input_file in input_files:
+        with h5py.File(hdf5_indir_feat / features_input_file, "r+") as features_file:
+            print('Reading Berkeley features data set')
+            print('File name: ', features_input_file)
+            t0 = time.time()
+            feature_vectors = np.array(features_file["/gabor_features"])
+            feature_shapes = np.array(features_file["/feature_shapes"])
 
-    datasets = Parallel(n_jobs=num_cores)(
-        delayed(prepare_dataset)(im_id, image, feature, shape) for im_id, image, feature, shape in iterator)
-    # for sample in reader:
-    #     datasets.append(((sample.img_id.decode('UTF-8'), sample.gabor_features, sample.ground_truth, sample.num_seg,
-    #                           sample.img_shape), {}))
-    default_base = {'quantile': .3,
-                    'eps': .3,
-                    'damping': .9,
-                    'preference': -200,
-                    'n_neighbors': 10,
-                    'n_clusters': 4,
-                    'min_samples': 20,
-                    'xi': 0.05,
-                    'min_cluster_size': 0.1,
-                    'n_jobs': 10}
+            features = Parallel(n_jobs=num_cores)(
+                delayed(np.reshape)(features, (shape[0], shape[1])) for features, shape in zip(feature_vectors, feature_shapes))
+            t1 = time.time()
+            print('Reading hdf5 features data set time: %.2fs' % (t1 - t0))
 
-    possible_num_clusters = ['max', 'min', 'mean', 'hmean', 'const']
-    for num_clusters in possible_num_clusters:
+            iterator = zip(img_ids, images, features, img_shapes)
 
-        outdir = 'outdir/' + num_imgs_dir + num_clusters + '_nclusters/'
+            datasets = Parallel(n_jobs=num_cores)(
+                delayed(prepare_dataset)(im_id, image, feature, shape) for im_id, image, feature, shape in iterator)
 
-        if not os.path.exists(outdir):
-            os.makedirs(outdir)
+            default_base = {'quantile': .3,
+                            'eps': .3,
+                            'damping': .9,
+                            'preference': -200,
+                            'n_neighbors': 10,
+                            'n_clusters': 4,
+                            'min_samples': 20,
+                            'xi': 0.05,
+                            'min_cluster_size': 0.1,
+                            'n_jobs': 10}
 
-        segmentation_metrics = Parallel(n_jobs=num_cores, prefer='processes')(
-            delayed(clustering_segmentation_and_metrics)(i_dataset + 1, dataset, algo_params, num_clusters) for
-            i_dataset, (dataset, algo_params) in enumerate(datasets))
+            possible_num_clusters = ['max', 'min', 'mean', 'hmean', 'const']
+            for num_clusters in possible_num_clusters:
 
-        KMeans_metrics = []
-        MiniBatchKMeans_metrics = []
-        Birch_metrics = []
-        GaussianMixture_metrics = []
+                outdir = '../outdir/pixel_level_segmentation/' + num_imgs_dir + 'all_methods_benchmark/' + features_input_file[:-3] + '/' + num_clusters + '_nclusters/'
 
-        for ii in range(len(datasets)):
-            algo_metrics = segmentation_metrics[ii]
-            KMeans_metrics.append((algo_metrics[0]['recall'], algo_metrics[0]['precision']))
-            MiniBatchKMeans_metrics.append((algo_metrics[1]['recall'], algo_metrics[1]['precision']))
-            Birch_metrics.append((algo_metrics[2]['recall'], algo_metrics[2]['precision']))
-            GaussianMixture_metrics.append((algo_metrics[3]['recall'], algo_metrics[3]['precision']))
+                if not os.path.exists(outdir):
+                    os.makedirs(outdir)
 
-        KMeans_metrics = np.array(KMeans_metrics)
-        MiniBatchKMeans_metrics = np.array(MiniBatchKMeans_metrics)
-        Birch_metrics = np.array(Birch_metrics)
-        GaussianMixture_metrics = np.array(GaussianMixture_metrics)
+                segmentation_metrics = Parallel(n_jobs=num_cores, prefer='processes')(
+                    delayed(clustering_segmentation_and_metrics)(i_dataset + 1, dataset, algo_params, num_clusters) for
+                    i_dataset, (dataset, algo_params) in enumerate(datasets))
 
-        algorithms_metrics = [KMeans_metrics, MiniBatchKMeans_metrics, Birch_metrics, GaussianMixture_metrics]
-        algorithms_names = ['KMeans', 'MiniBatchKMeans', 'Birch', 'GaussianMixture']
+                KMeans_metrics = []
+                MiniBatchKMeans_metrics = []
+                Birch_metrics = []
+                GaussianMixture_metrics = []
+                all_precisions = []
+                all_recalls = []
 
-        for name, result_metrics in zip(algorithms_names, algorithms_metrics):
-            recall = result_metrics[:, 0]
-            precision = result_metrics[:, 1]
+                for ii in range(len(datasets)):
+                    algo_metrics = segmentation_metrics[ii]
+                    KMeans_metrics.append((algo_metrics[0]['recall'], algo_metrics[0]['precision'], algo_metrics[0]['underseg'], algo_metrics[0]['undersegNP'], algo_metrics[0]['compactness'], algo_metrics[0]['density']))
+                    MiniBatchKMeans_metrics.append((algo_metrics[1]['recall'], algo_metrics[1]['precision'], algo_metrics[1]['underseg'], algo_metrics[1]['undersegNP'], algo_metrics[1]['compactness'], algo_metrics[1]['density']))
+                    Birch_metrics.append((algo_metrics[2]['recall'], algo_metrics[2]['precision'], algo_metrics[2]['underseg'], algo_metrics[2]['undersegNP'], algo_metrics[2]['compactness'], algo_metrics[2]['density']))
+                    GaussianMixture_metrics.append((algo_metrics[3]['recall'], algo_metrics[3]['precision'], algo_metrics[3]['underseg'], algo_metrics[3]['undersegNP'], algo_metrics[3]['compactness'], algo_metrics[3]['density']))
 
-            plt.figure(dpi=180)
-            plt.plot(np.arange(len(datasets)) + 1, recall, '-o', c='k', label='recall')
-            plt.plot(np.arange(len(datasets)) + 1, precision, '-o', c='r', label='precision')
-            plt.title(name + ' P/R histogram ' + num_clusters + ' nclusters')
-            plt.xlabel(
-                'Rmax: %.3f, Rmin: %.3f, Rmean: %.3f, Rmed: %.3f, Rstd: %.3f \n Pmax: %.3f, Pmin: %.3f, Pmean: %.3f, '
-                'Pmed: %.3f, Pstd: %.3f ' % (recall.max(), recall.min(), recall.mean(), np.median(recall), recall.std(),
-                                             precision.max(), precision.min(), precision.mean(), np.median(precision),
-                                             precision.std()))
-            plt.ylim(0, 1.05)
-            plt.legend()
-            plt.grid()
-            plt.savefig(outdir + name + '_PR_hist_' + num_clusters + '_nclusters.png', bbox_inches='tight')
+                    all_precisions.extend([algo_metrics[0]['precision'], algo_metrics[1]['precision'], algo_metrics[2]['precision'], algo_metrics[3]['precision']])
+                    all_recalls.extend([algo_metrics[0]['recall'], algo_metrics[1]['recall'], algo_metrics[2]['recall'], algo_metrics[3]['recall']])
 
-            plt.close('all')
+                KMeans_metrics = np.array(KMeans_metrics)
+                MiniBatchKMeans_metrics = np.array(MiniBatchKMeans_metrics)
+                Birch_metrics = np.array(Birch_metrics)
+                GaussianMixture_metrics = np.array(GaussianMixture_metrics)
+
+                np.savetxt(outdir + 'KMeans_metrics.csv', np.column_stack((img_ids, KMeans_metrics)), delimiter=',', fmt=['%s', '%f', '%f', '%f', '%f', '%f', '%f'], header='img ID, recall, precision, undersegmentation Bergh, undersegmentation NP, compactness, density', comments='')
+                np.savetxt(outdir + 'MiniBatchKMeans_metrics.csv', np.column_stack((img_ids, MiniBatchKMeans_metrics)), delimiter=',', fmt=['%s', '%f', '%f', '%f', '%f', '%f', '%f'], header='img ID, recall, precision, undersegmentation Bergh, undersegmentation NP, compactness, density', comments='')
+                np.savetxt(outdir + 'Birch_metrics.csv', np.column_stack((img_ids, Birch_metrics)), delimiter=',', fmt=['%s', '%f', '%f', '%f', '%f', '%f', '%f'], header='img ID, recall, precision, undersegmentation Bergh, undersegmentation NP, compactness, density', comments='')
+                np.savetxt(outdir + 'GaussianMixture_metrics.csv', np.column_stack((img_ids, GaussianMixture_metrics)), delimiter=',', fmt=['%s', '%f', '%f', '%f', '%f', '%f', '%f'], header='img ID, recall, precision, undersegmentation Bergh, undersegmentation NP, compactness, density', comments='')
+
+                algorithms_metrics = [KMeans_metrics, MiniBatchKMeans_metrics, Birch_metrics, GaussianMixture_metrics]
+                algorithms_names = ['KMeans', 'MiniBatchKMeans', 'Birch', 'GaussianMixture']
+
+                score_method_names = algorithms_names * len(datasets)
+                df = pd.DataFrame({'Method': score_method_names, 'Precision': all_precisions, 'Recall': all_recalls})
+                df = df[['Method', 'Precision', 'Recall']]
+                dd = pd.melt(df, id_vars=['Method'], value_vars=['Precision', 'Recall'], var_name='scores')
+
+                plt.figure(dpi=180)
+                sns.boxplot(x='Method', y='value', data=dd, hue='scores')
+                plt.title('Precision / Recall box plot ' + num_clusters + ' nclusters')
+                plt.savefig(outdir + 'PrecisionRecall_boxplot_' + num_clusters + '_nclusters.png', bbox_inches='tight')
+
+                for name, result_metrics in zip(algorithms_names, algorithms_metrics):
+                    recall = result_metrics[:, 0]
+                    precision = result_metrics[:, 1]
+
+                    plt.figure(dpi=180)
+                    plt.plot(np.arange(len(datasets)) + 1, recall, '-o', c='k', label='recall')
+                    plt.plot(np.arange(len(datasets)) + 1, precision, '-o', c='r', label='precision')
+                    plt.title(name + ' P/R histogram ' + num_clusters + ' nclusters')
+                    plt.xlabel(
+                        'Rmax: %.3f, Rmin: %.3f, Rmean: %.3f, Rmed: %.3f, Rstd: %.3f \n Pmax: %.3f, Pmin: %.3f, Pmean: %.3f, '
+                        'Pmed: %.3f, Pstd: %.3f ' % (recall.max(), recall.min(), recall.mean(), np.median(recall), recall.std(),
+                                                     precision.max(), precision.min(), precision.mean(), np.median(precision),
+                                                     precision.std()))
+                    plt.ylim(0, 1.05)
+                    plt.legend()
+                    plt.grid()
+                    plt.savefig(outdir + name + '_PR_hist_' + num_clusters + '_nclusters.png', bbox_inches='tight')
+                    plt.cla()
+                    plt.clf()
+                    plt.close()
