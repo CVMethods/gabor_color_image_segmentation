@@ -51,14 +51,15 @@ if __name__ == '__main__':
             feature_vectors = np.array(features_file["/gabor_features"])
             feature_shapes = np.array(features_file["/feature_shapes"])
 
-            features = Parallel(n_jobs=num_cores)(
-                delayed(np.reshape)(features, (shape[0], shape[1])) for features, shape in
-                zip(feature_vectors, feature_shapes))
-            t1 = time.time()
-            print('Reading hdf5 features data set time: %.2fs' % (t1 - t0))
-
             n_freq = features_file.attrs['num_freq']
             n_angles = features_file.attrs['num_angles']
+
+            gabor_features_norm = Parallel(n_jobs=num_cores)(
+                delayed(np.reshape)(features, (shape[0], shape[1], n_freq * n_angles, shape[2])) for features, shape in
+                zip(feature_vectors, img_shapes))
+
+            t1 = time.time()
+            print('Reading hdf5 features data set time: %.2fs' % (t1 - t0))
 
             # Compute ground distance matrix
             ground_distance = cost_matrix_texture(n_freq, n_angles)
@@ -78,10 +79,6 @@ if __name__ == '__main__':
             graph_mode = 'mst'  # Choose: 'complete' to use whole graph or 'mst' to use Minimum Spanning Tree
             law_type = 'log'  # Choose 'log' for lognorm distribution or 'gamma' for gamma distribution
             cut_level = 0.9  # set threshold at the 90% quantile level
-
-            gabor_features_norm = Parallel(n_jobs=num_cores)(
-                delayed(np.reshape)(features, (shape[0], shape[1], n_freq * n_angles, shape[2])) for features, shape in
-                zip(feature_vectors, img_shapes))
 
             metrics_values = []
             for im_file, img, g_energies in zip(img_ids, images, gabor_features_norm):
