@@ -1,7 +1,8 @@
-from pathlib import Path
-
+import sys
 import h5py
 
+from pathlib import Path
+sys.path.append('../')
 from source.metrics import *
 from source.groundtruth import *
 from source.graph_operations import *
