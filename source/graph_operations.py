@@ -61,6 +61,27 @@ def update_edges_weight(regions, rag, gabor_energies, ground_dist, method):
     return rag_weighted
 
 
+def get_pixel_graph(neighbors, img_shape):
+    rows, cols, channels = img_shape
+    pixels = np.arange(rows * cols)
+    nodes = pixels.reshape((rows, cols))
+    yy, xx = np.where(nodes >= 0)
+    centroids = np.column_stack((yy, xx))
+    knn_mat = kneighbors_graph(centroids, neighbors, mode='connectivity', include_self=False)
+    _, indices, indptr = knn_mat.data, knn_mat.indices, knn_mat.indptr
+
+    edges = [(yy[indices[j]], xx[indices[j]], yy[i], xx[i]) for i in pixels for j in range(indptr[i], indptr[i + 1]) if
+             indices[j] <= i]
+    edges_index = np.array([(nodes[e[0], e[1]], nodes[e[2], e[3]]) for e in edges])
+    neighbor_edges = [[] for i in pixels]
+
+    for ii, e in enumerate(edges_index):
+        neighbor_edges[e[0]].append(ii)
+        neighbor_edges[e[1]].append(ii)
+
+    return edges_index, np.array(neighbor_edges)
+
+
 def get_graph(img, regions, graph_type, neighbors, radius):
 
     if graph_type == 'rag':
