@@ -1,5 +1,6 @@
 from source.computation_support import *
 
+
 def update_edges_weight(regions, rag, gabor_energies, ground_dist, method):
     """
     Obtain 3D color histogram of each superpixel region, then it computes the color distance between neighbor regions.
@@ -57,6 +58,26 @@ def update_edges_weight(regions, rag, gabor_energies, ground_dist, method):
     #     for e in list(rag.edges()):
     #         divergence = cv2.compareHist(hist[e[0]], hist[e[1]], 5)
     #         rag_weighted[e[0]][e[1]]['weight'] = divergence
+
+    return rag_weighted
+
+
+def update_groundtruth_edges_weight(regions, rag, segments):
+    num_cores = multiprocessing.cpu_count()
+
+    i_superpixel = np.unique(regions)
+    superpixel_labels = []
+    for ii in i_superpixel:
+        values, counts = np.unique(segments[regions == ii], return_counts=True)
+        ind = np.argmax(counts)
+        superpixel_labels.append(values[ind])
+
+    groundtruth_dist = np.array(Parallel(n_jobs=num_cores)(
+            delayed(dist_label)((superpixel_labels[e[0]], superpixel_labels[e[1]])) for e in list(rag.edges)))
+
+    rag_weighted = rag.copy()
+    for ii, e in enumerate(list(rag.edges)):
+        rag_weighted[e[0]][e[1]]['weight'] = groundtruth_dist[ii]
 
     return rag_weighted
 

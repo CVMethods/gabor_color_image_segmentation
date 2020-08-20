@@ -47,7 +47,6 @@ def color_3dhistogram(coor, n_bins):
 
     return [w, pos]
 
-
 # def color_3dhistogram(coor, n_bins):
 #     """
 #     Transforms the color pixels of a region from a color space (LAB ou RGB) to a 3D histogram of n_bins per axe.
@@ -71,9 +70,6 @@ def color_3dhistogram(coor, n_bins):
 #     w = np.array(w, dtype=np.float)
 #     w = w/w.sum()
 #     return [w, pos]
-
-
-
 
 
 def slic_superpixel(img, n_regions, convert2lab):
@@ -147,3 +143,7 @@ def em_dist_mine(signature, CM):
     #     w1 = np.float64(softmax(signature[0]))
     #     w2 = np.float64(softmax(signature[1]))
     return ot.emd2(w1, w2, CM, processes=-1) + np.abs(signature[0].sum() - signature[1].sum())  # The abs() was multiplied by 2
+
+
+def dist_label(labels):
+    return (labels[0] != labels[1]) * 1.
