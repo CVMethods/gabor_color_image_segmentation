@@ -214,6 +214,9 @@ if __name__ == '__main__':
     # img_training = images[img_subdirs == 'train']
     # pdb.set_trace()
 
+    # Graph function parameters
+    kneighbors = 8
+
     input_files = os.listdir(hdf5_indir_feat)
     for features_input_file in input_files:
         with h5py.File(hdf5_indir_feat / features_input_file, "r+") as features_file:
@@ -223,9 +226,6 @@ if __name__ == '__main__':
             feature_vectors = np.array(features_file["/gabor_features"])
             feature_shapes = np.array(features_file["/feature_shapes"])
 
-            # features = Parallel(n_jobs=num_cores)(
-            #     delayed(np.reshape)(features, (shape[0], shape[1])) for features, shape in
-            #     zip(feature_vectors, feature_shapes))
             n_freq = features_file.attrs['num_freq']
             n_angles = features_file.attrs['num_angles']
 
@@ -235,9 +235,6 @@ if __name__ == '__main__':
 
             t1 = time.time()
             print('Reading hdf5 features data set time: %.2fs' % (t1 - t0))
-
-            # Graph function parameters
-            kneighbors = 8
 
             # Compute ground distance matrix
             ground_distance = cost_matrix_texture(n_freq, n_angles)
@@ -251,7 +248,7 @@ if __name__ == '__main__':
             output_file_name[1] = 'PerceptualGradients'
             output_file = '_'.join(output_file_name)
 
-            outdir = '../outdir/perceptual_gradient/' + num_imgs_dir + output_file[:-3] + '/'
+            outdir = '../outdir/perceptual_gradient/' + num_imgs_dir + 'pixel_level/' + output_file[:-3] + '/'
 
             if not os.path.exists(outdir):
                 os.makedirs(outdir)
