@@ -106,7 +106,7 @@ if __name__ == '__main__':
                 output_file_name[1] = 'Models'
                 output_file = '_'.join(output_file_name)
 
-                outdir = '../../data/models/' + output_file[:-3] + '/'
+                outdir = '../../data/models/' + num_imgs_dir + output_file[:-3] + '/'
 
                 if not os.path.exists(outdir):
                     os.makedirs(outdir)
