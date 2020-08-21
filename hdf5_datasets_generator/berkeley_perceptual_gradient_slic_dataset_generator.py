@@ -102,10 +102,107 @@ def get_gt_min_nsegments(img_id):
     return ground_truth_segments[pos_min_nseg]
 
 
+def perceptual_gradient_computation(im_file, img, g_energies):
+    print('##############################', im_file, '##############################')
+
+    ''' Computing superpixel regions '''
+    regions_slic = slic_superpixel(img, n_regions, convert2lab)
+
+    ''' Computing Graphs '''
+    graph_raw = get_graph(img, regions_slic, graph_type, kneighbors, radius)
+    graph_lum = graph_raw.copy()
+    graph_cr = graph_raw.copy()
+    graph_ci = graph_raw.copy()
+    graph_gt = graph_raw.copy()
+
+    ''' Updating edges weights with similarity measure (OT/KL) '''
+    graph_weighted_lum = update_edges_weight(regions_slic, graph_lum, g_energies[:, :, :, 0], ground_distance, method)
+    graph_weighted_cr = update_edges_weight(regions_slic, graph_cr, g_energies[:, :, :, 1], ground_distance, method)
+    graph_weighted_ci = update_edges_weight(regions_slic, graph_ci, g_energies[:, :, :, 2], ground_distance, method)
+
+    weights_lum = np.fromiter(nx.get_edge_attributes(graph_weighted_lum, 'weight').values(), dtype=np.float32)
+    weights_cr = np.fromiter(nx.get_edge_attributes(graph_weighted_cr, 'weight').values(), dtype=np.float32)
+    weights_ci = np.fromiter(nx.get_edge_attributes(graph_weighted_ci, 'weight').values(), dtype=np.float32)
+
+    ''' Computing target gradient from the ground truth'''
+    min_ground_truth = get_gt_min_nsegments(im_file)
+    graph_weighted_gt = update_groundtruth_edges_weight(regions_slic, graph_gt, min_ground_truth)
+
+    weights_gt = np.fromiter(nx.get_edge_attributes(graph_weighted_gt, 'weight').values(), dtype=np.float32)
+
+    # perceptual_gradients.append(np.column_stack((weights_lum, weights_cr, weights_ci, weights_gt)))
+    stacked_gradients = np.column_stack((weights_lum, weights_cr, weights_ci, weights_gt))
+
+
+    ##############################################################################
+    '''Visualization Section: show and/or save images'''
+    # General Params
+    save_fig = True
+    fontsize = 10
+    file_name = im_file
+
+    outdir = '../outdir/perceptual_gradient/' + num_imgs_dir + 'slic_level/' + output_file[:-3] + '/computation_support/'
+
+    if not os.path.exists(outdir):
+        os.makedirs(outdir)
+
+    # Show Input image
+    fig_title = 'Input Image'
+    show_and_save_img(img, fig_title, fontsize, save_fig, outdir, file_name)
+
+    # Show SLIC result
+    fig_title = 'Superpixel Regions'
+    img_name = '_slic'
+    show_and_save_regions(img, regions_slic, fig_title, img_name, fontsize, save_fig, outdir, file_name)
+
+    # Show Graph with uniform weight
+    fig_title = 'Graph (' + graph_type + ')'
+    img_name = '_raw_' + graph_type
+    colbar_lim = (0, 1)
+    show_and_save_imgraph(img, regions_slic, graph_raw, fig_title, img_name, fontsize, save_fig, outdir, file_name,
+                          colbar_lim)
+
+    outdir = '../outdir/perceptual_gradient/' + num_imgs_dir + 'slic_level/' + output_file[:-3] + '/gradients/'
+
+    if not os.path.exists(outdir):
+        os.makedirs(outdir)
+
+    # Show Graph with updated weights
+    fig_title = 'Lum Weighted Graph (' + graph_type + ')'
+    img_name = '_weighted_lum_' + graph_type
+    colbar_lim = (min(weights_lum), max(weights_lum))
+    show_and_save_imgraph(img, regions_slic, graph_weighted_lum, fig_title, img_name, fontsize, save_fig, outdir,
+                          file_name, colbar_lim)
+
+    fig_title = 'Cr Weighted Graph (' + graph_type + ')'
+    img_name = '_weighted_cr_' + graph_type
+    colbar_lim = (min(weights_cr), max(weights_cr))
+    show_and_save_imgraph(img, regions_slic, graph_weighted_cr, fig_title, img_name, fontsize, save_fig,
+                          outdir, file_name, colbar_lim)
+
+    fig_title = 'Ci Weighted Graph (' + graph_type + ')'
+    img_name = '_weighted_ci_' + graph_type
+    colbar_lim = (min(weights_ci), max(weights_ci))
+    show_and_save_imgraph(img, regions_slic, graph_weighted_ci, fig_title, img_name, fontsize, save_fig,
+                          outdir, file_name, colbar_lim)
+
+    fig_title = 'Gt Weighted Graph (' + graph_type + ')'
+    img_name = '_weighted_gt_' + graph_type
+    colbar_lim = (min(weights_gt), max(weights_gt))
+    show_and_save_imgraph(img, regions_slic, graph_weighted_gt, fig_title, img_name, fontsize, save_fig,
+                          outdir, file_name, colbar_lim)
+
+    plt.cla()
+    plt.clf()
+    plt.close('all')
+
+    return stacked_gradients
+
+
 if __name__ == '__main__':
     num_cores = -1
 
-    num_imgs = 7
+    num_imgs = 25
 
     hdf5_dir = Path('../../data/hdf5_datasets/')
 
@@ -147,9 +244,6 @@ if __name__ == '__main__':
     t1 = time.time()
     print('Reading hdf5 image data set time: %.2fs' % (t1 - t0))
 
-    # img_training = images[img_subdirs == 'train']
-    # pdb.set_trace()
-
     # Superpixels function parameters
     n_regions = 500 * 8
     convert2lab = True
@@ -164,6 +258,7 @@ if __name__ == '__main__':
 
     input_files = os.listdir(hdf5_indir_feat)
     for features_input_file in input_files:
+        time_start = time.time()
         with h5py.File(hdf5_indir_feat / features_input_file, "r+") as features_file:
             print('Reading Berkeley features data set')
             print('File name: ', features_input_file)
@@ -184,104 +279,11 @@ if __name__ == '__main__':
             # Compute ground distance matrix
             ground_distance = cost_matrix_texture(n_freq, n_angles)
 
-            perceptual_gradients = []
-
             output_file_name = features_input_file.split('_')
             output_file_name[1] = 'PerceptualGradients'
             output_file = '_'.join(output_file_name)
 
-            for im_file, img, g_energies in zip(img_ids, images, gabor_features_norm):
-                time_total = time.time()
-
-                print('##############################', im_file, '##############################')
-
-                ''' Computing superpixel regions '''
-                regions_slic = slic_superpixel(img, n_regions, convert2lab)
-
-                ''' Computing Graphs '''
-                graph_raw = get_graph(img, regions_slic, graph_type, kneighbors, radius)
-                graph_lum = graph_raw.copy()
-                graph_cr = graph_raw.copy()
-                graph_ci = graph_raw.copy()
-                graph_gt = graph_raw.copy()
-
-                ''' Updating edges weights with similarity measure (OT/KL) '''
-                graph_weighted_lum = update_edges_weight(regions_slic, graph_lum, g_energies[:, :, :, 0], ground_distance, method)
-                graph_weighted_cr = update_edges_weight(regions_slic, graph_cr, g_energies[:, :, :, 1], ground_distance, method)
-                graph_weighted_ci = update_edges_weight(regions_slic, graph_ci, g_energies[:, :, :, 2], ground_distance, method)
-
-                weights_lum = np.fromiter(nx.get_edge_attributes(graph_weighted_lum, 'weight').values(), dtype=np.float32)
-                weights_cr = np.fromiter(nx.get_edge_attributes(graph_weighted_cr, 'weight').values(), dtype=np.float32)
-                weights_ci = np.fromiter(nx.get_edge_attributes(graph_weighted_ci, 'weight').values(), dtype=np.float32)
-
-
-                ''' Computing target gradient from the ground truth'''
-                min_ground_truth = get_gt_min_nsegments(im_file)
-                graph_weighted_gt = update_groundtruth_edges_weight(regions_slic, graph_gt, min_ground_truth)
-
-                weights_gt = np.fromiter(nx.get_edge_attributes(graph_weighted_gt, 'weight').values(), dtype=np.float32)
-
-
-                perceptual_gradients.append(np.column_stack((weights_lum, weights_cr, weights_ci, weights_gt)))
-                ##############################################################################
-                '''Visualization Section: show and/or save images'''
-                # General Params
-                save_fig = True
-                fontsize = 10
-                file_name = im_file
-
-                outdir = '../outdir/perceptual_gradient/' + num_imgs_dir + 'slic_level/' + output_file[:-3] + '/computation_support/'
-
-                if not os.path.exists(outdir):
-                    os.makedirs(outdir)
-
-                # Show Input image
-                fig_title = 'Input Image'
-                show_and_save_img(img, fig_title, fontsize, save_fig, outdir, file_name)
-
-                # Show SLIC result
-                fig_title = 'Superpixel Regions'
-                img_name = '_slic'
-                show_and_save_regions(img, regions_slic, fig_title, img_name, fontsize, save_fig, outdir, file_name)
-
-                # Show Graph with uniform weight
-                fig_title = 'Graph (' + graph_type + ')'
-                img_name = '_raw_' + graph_type
-                colbar_lim = (0, 1)
-                show_and_save_imgraph(img, regions_slic, graph_raw, fig_title, img_name, fontsize, save_fig, outdir, file_name, colbar_lim)
-
-                outdir = '../outdir/perceptual_gradient/' + num_imgs_dir + 'slic_level/' + output_file[:-3] + '/gradients/'
-
-                if not os.path.exists(outdir):
-                    os.makedirs(outdir)
-
-                # Show Graph with updated weights
-                fig_title = 'Lum Weighted Graph (' + graph_type + ')'
-                img_name = '_weighted_lum_' + graph_type
-                colbar_lim = (min(weights_lum), max(weights_lum))
-                show_and_save_imgraph(img, regions_slic, graph_weighted_lum, fig_title, img_name, fontsize, save_fig, outdir, file_name, colbar_lim)
-
-                fig_title = 'Cr Weighted Graph (' + graph_type + ')'
-                img_name = '_weighted_cr_' + graph_type
-                colbar_lim = (min(weights_cr), max(weights_cr))
-                show_and_save_imgraph(img, regions_slic, graph_weighted_cr, fig_title, img_name, fontsize, save_fig,
-                                      outdir, file_name, colbar_lim)
-
-                fig_title = 'Ci Weighted Graph (' + graph_type + ')'
-                img_name = '_weighted_ci_' + graph_type
-                colbar_lim = (min(weights_ci), max(weights_ci))
-                show_and_save_imgraph(img, regions_slic, graph_weighted_ci, fig_title, img_name, fontsize, save_fig,
-                                      outdir, file_name, colbar_lim)
-
-                fig_title = 'Gt Weighted Graph (' + graph_type + ')'
-                img_name = '_weighted_gt_' + graph_type
-                colbar_lim = (min(weights_gt), max(weights_gt))
-                show_and_save_imgraph(img, regions_slic, graph_weighted_gt, fig_title, img_name, fontsize, save_fig,
-                                      outdir, file_name, colbar_lim)
-
-                plt.cla()
-                plt.clf()
-                plt.close('all')
+            perceptual_gradients = Parallel(n_jobs=num_cores)(delayed(perceptual_gradient_computation)(im_file, img, g_energies) for im_file, img, g_energies in zip(img_ids, images, gabor_features_norm))
 
             with ImageIndexer(hdf5_outdir / output_file,
                               buffer_size=num_imgs,
@@ -289,3 +291,6 @@ if __name__ == '__main__':
 
                 for gradients in perceptual_gradients:
                     imageindexer.add(gradients)
+
+        time_end = time.time()
+        print('Gradient computation time: %.2fs' % (time_end - time_start))
