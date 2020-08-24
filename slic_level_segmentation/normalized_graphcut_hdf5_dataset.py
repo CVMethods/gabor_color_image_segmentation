@@ -12,7 +12,7 @@ from source.color_seg_methods import *
 if __name__ == '__main__':
     num_cores = -1
 
-    num_imgs = 7
+    num_imgs = 25
 
     hdf5_dir = Path('../../data/hdf5_datasets/')
 
@@ -27,6 +27,12 @@ if __name__ == '__main__':
         hdf5_indir_im = hdf5_dir / '7images/' / 'images'
         hdf5_indir_feat = hdf5_dir / '7images/' / 'features'
         num_imgs_dir = '7images/'
+
+    elif num_imgs is 25:
+        # Path to my 7 favourite images from the Berkeley data set
+        hdf5_indir_im = hdf5_dir / '25images/' / 'images'
+        hdf5_indir_feat = hdf5_dir / '25images/' / 'features'
+        num_imgs_dir = '25images/'
 
     print('Reading Berkeley image data set')
     t0 = time.time()
