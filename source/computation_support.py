@@ -4,11 +4,12 @@ import numpy as np
 import multiprocessing
 import skimage.segmentation as skim
 import networkx as nx
-from pyemd import emd, emd_samples
 import ot
 import skimage.future.graph as grph
 import matplotlib.pyplot as plt
 import pdb
+
+from pyemd import emd, emd_samples
 from joblib import Parallel, delayed
 from skimage import io
 from skimage.measure import regionprops
@@ -18,6 +19,7 @@ from scipy import ndimage as ndi
 from scipy.signal import fftconvolve as convolve
 from scipy.ndimage import gaussian_filter
 from skimage.transform import rescale
+from scipy.stats import hmean
 
 
 def color_histogram(img, n_bins):

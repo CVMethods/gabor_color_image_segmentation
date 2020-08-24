@@ -12,7 +12,7 @@ from source.color_seg_methods import *
 if __name__ == '__main__':
     num_cores = -1
 
-    num_imgs = 25
+    num_imgs = 7
 
     hdf5_dir = Path('../../data/hdf5_datasets/')
 
@@ -48,6 +48,7 @@ if __name__ == '__main__':
     print('Reading hdf5 image data set time: %.2fs' % (t1 - t0))
 
     input_files = os.listdir(hdf5_indir_feat)
+    all_f_scores = []
     for features_input_file in input_files:
         with h5py.File(hdf5_indir_feat / features_input_file, "r+") as features_file:
             print('Reading Berkeley features data set')
@@ -231,6 +232,8 @@ if __name__ == '__main__':
             metrics_values = np.array(metrics_values)
             recall = metrics_values[:, 0]
             precision = metrics_values[:, 1]
+            f_score = hmean((precision, recall), axis=0)
+            all_f_scores.append(f_score)
 
             plt.figure(dpi=180)
             plt.plot(np.arange(len(image_vectors)) + 1, recall, '-o', c='k', label='recall')
@@ -258,9 +261,34 @@ if __name__ == '__main__':
             ax.boxplot(list([precision, recall]))
             ax.set_title('Thr graphcut P/R density box plot')
             ax.set_xticklabels(['precision', 'recall'])
+            ax.set_xlabel('F-score: %.3f' % np.median(f_score))
             plt.grid()
             plt.savefig(outdir + 'Thr_graphcut_PR_boxplot.png', bbox_inches='tight')
 
             plt.close('all')
+
+    all_f_scores = np.array(all_f_scores)
+    index = np.argsort(np.median(all_f_scores, axis=1))
+    input_files = np.array(input_files)
+
+    outdir = '../outdir/' + \
+        'slic_level_segmentation/' + \
+        num_imgs_dir + \
+        'threshold_graphcut/' + \
+        method + '/' + \
+        graph_type + '_graph/'
+
+    if not os.path.exists(outdir):
+        os.makedirs(outdir)
+    pdb.set_trace()
+
+    plt.figure(dpi=180)
+    ax = plt.gca()
+    ax.boxplot(all_f_scores[index].T)
+    ax.set_title('Thr graphcut F scores: ' + law_type + ' dist, ' + graph_mode + ' graph')
+    # ax.legend(input_files, fontsize=5, loc='best', bbox_to_anchor=(1, 1))
+    ax.set_yticklabels(input_files[index], fontsize=5)
+    plt.grid()
+    plt.savefig(outdir + 'Thr_graphcut_Fscores_' + law_type + '_' + graph_mode + '_boxplot.png', bbox_inches='tight')
 
 
