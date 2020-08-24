@@ -25,10 +25,12 @@ class ImageIndexer(object):
         self.num_of_images = num_of_images
         self.gradient_arrays_db = None
         self.gradient_shapes_db = None
+        self.superpixels_db = None
         self.idxs = {"index": 0}
 
         self.gradient_arrays_buffer = []
         self.gradient_shapes_buffer = []
+        self.superpixels_buffer = []
 
     def __enter__(self):
         print("indexing {} images".format(self.num_of_images))
@@ -42,6 +44,7 @@ class ImageIndexer(object):
 
             self._write_buffer(self.gradient_arrays_db, self.gradient_arrays_buffer)
             self._write_buffer(self.gradient_shapes_db, self.gradient_shapes_buffer)
+            self._write_buffer(self.superpixels_db, self.superpixels_buffer)
 
         print("closing h5 db")
         self.db.close()
@@ -62,9 +65,17 @@ class ImageIndexer(object):
             dtype=np.int64
         )
 
+        self.superpixels_db = self.db.create_dataset(
+            "superpixels",
+            shape=(self.num_of_images,),
+            maxshape=(None,),
+            dtype=h5py.special_dtype(vlen=np.dtype('int64'))
+        )
+
     def add(self, feature_array):
-        self.gradient_arrays_buffer.append(feature_array.flatten())
-        self.gradient_shapes_buffer.append(feature_array.shape)
+        self.gradient_arrays_buffer.append(feature_array[0].flatten())
+        self.gradient_shapes_buffer.append(feature_array[0].shape)
+        self.superpixels_buffer.append(feature_array[1].flatten())
 
         if self.gradient_arrays_db is None:
             self.create_datasets()
@@ -72,6 +83,7 @@ class ImageIndexer(object):
         if len(self.gradient_arrays_buffer) >= self.buffer_size:
             self._write_buffer(self.gradient_arrays_db, self.gradient_arrays_buffer)
             self._write_buffer(self.gradient_shapes_db, self.gradient_shapes_buffer)
+            self._write_buffer(self.superpixels_db, self.superpixels_buffer)
 
             # increment index
             self.idxs['index'] += len(self.gradient_arrays_buffer)
@@ -196,7 +208,7 @@ def perceptual_gradient_computation(im_file, img, g_energies):
     plt.clf()
     plt.close('all')
 
-    return stacked_gradients
+    return (stacked_gradients, regions_slic)
 
 
 if __name__ == '__main__':
