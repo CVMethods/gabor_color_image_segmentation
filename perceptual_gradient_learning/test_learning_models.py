@@ -125,30 +125,30 @@ if __name__ == '__main__':
                         X_test = all_imgs_data[ii][:, :-1]
                         y_test = all_imgs_data[ii][:, -1]
 
-                    pred = model.predict(X_test)
-                    mae_score = 1. - mean_absolute_error(y_test, pred)
-                    r2score = r2_score(y_test, pred)
-                    print('Score :',  1. - mae_score, r2score)
+                        pred = model.predict(X_test)
+                        mae_score = 1. - mean_absolute_error(y_test, pred)
+                        r2score = r2_score(y_test, pred)
+                        print('Score :',  1. - mae_score, r2score)
 
-                    regions_slic = superpixel_vectors[ii].reshape((img_shapes[ii][0], img_shapes[ii][1]))
-                    graph_pred = get_graph(images[ii], regions_slic, graph_type, kneighbors, radius)
-                    # graph_pred = graph_raw.copy()
+                        regions_slic = superpixel_vectors[ii].reshape((img_shapes[ii][0], img_shapes[ii][1]))
+                        graph_pred = get_graph(images[ii], regions_slic, graph_type, kneighbors, radius)
+                        # graph_pred = graph_raw.copy()
 
-                    for i_edge, e in enumerate(list(graph_pred.edges)):
-                        graph_pred[e[0]][e[1]]['weight'] = pred[i_edge]
+                        for i_edge, e in enumerate(list(graph_pred.edges)):
+                            graph_pred[e[0]][e[1]]['weight'] = pred[i_edge]
 
-                    # Visualization Params
-                    save_fig = True
-                    fontsize = 10
-                    file_name = img_ids[ii]
+                        # Visualization Params
+                        save_fig = True
+                        fontsize = 10
+                        file_name = img_ids[ii]
 
-                    # Show Graph with updated weights
-                    fig_title = model_file_name[:-4] +' Predicted Gradient (' + graph_type + ')'
-                    img_name = '_weighted_pred_' + graph_type
-                    colbar_lim = (min(pred), max(pred))
-                    show_and_save_imgraph(images[ii], regions_slic, graph_pred, fig_title, img_name, fontsize, save_fig, outdir,
-                          file_name, colbar_lim)
+                        # Show Graph with updated weights
+                        fig_title = model_file_name[:-4] +' Predicted Gradient (' + graph_type + ')'
+                        img_name = '_weighted_pred_' + graph_type
+                        colbar_lim = (min(pred), max(pred))
+                        show_and_save_imgraph(images[ii], regions_slic, graph_pred, fig_title, img_name, fontsize, save_fig, outdir,
+                              file_name, colbar_lim)
 
-                    plt.clf()
-                    plt.cla()
-                    plt.close('all')
+                        plt.clf()
+                        plt.cla()
+                        plt.close('all')
