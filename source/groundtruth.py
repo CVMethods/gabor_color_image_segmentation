@@ -3,7 +3,7 @@
 
 import sys, time, os
 from os.path import expanduser
-
+from skimage.morphology import erosion, disk, dilation, closing, opening, diamond
 home = expanduser("~")
 
 from scipy.io import loadmat
@@ -22,7 +22,7 @@ def get_segmentation(path, filename):
     data = f['groundTruth'][0]
     groundtruth = []
     for img in data:
-        groundtruth.append(img[0][0][0])
+        groundtruth.append(opening(img[0][0][0], disk(1)))
 
     # 4: Output
     return groundtruth

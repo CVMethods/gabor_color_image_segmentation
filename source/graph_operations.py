@@ -1,5 +1,6 @@
 from source.computation_support import *
 
+
 def update_edges_weight(regions, rag, gabor_energies, ground_dist, method):
     """
     Obtain 3D color histogram of each superpixel region, then it computes the color distance between neighbor regions.
@@ -59,6 +60,47 @@ def update_edges_weight(regions, rag, gabor_energies, ground_dist, method):
     #         rag_weighted[e[0]][e[1]]['weight'] = divergence
 
     return rag_weighted
+
+
+def update_groundtruth_edges_weight(regions, rag, segments):
+    num_cores = multiprocessing.cpu_count()
+
+    i_superpixel = np.unique(regions)
+    superpixel_labels = []
+    for ii in i_superpixel:
+        values, counts = np.unique(segments[regions == ii], return_counts=True)
+        ind = np.argmax(counts)
+        superpixel_labels.append(values[ind])
+
+    groundtruth_dist = np.array(Parallel(n_jobs=num_cores)(
+            delayed(dist_label)((superpixel_labels[e[0]], superpixel_labels[e[1]])) for e in list(rag.edges)))
+
+    rag_weighted = rag.copy()
+    for ii, e in enumerate(list(rag.edges)):
+        rag_weighted[e[0]][e[1]]['weight'] = groundtruth_dist[ii]
+
+    return rag_weighted
+
+
+def get_pixel_graph(neighbors, img_shape):
+    rows, cols, channels = img_shape
+    pixels = np.arange(rows * cols)
+    nodes = pixels.reshape((rows, cols))
+    yy, xx = np.where(nodes >= 0)
+    centroids = np.column_stack((yy, xx))
+    knn_mat = kneighbors_graph(centroids, neighbors, mode='connectivity', include_self=False)
+    _, indices, indptr = knn_mat.data, knn_mat.indices, knn_mat.indptr
+
+    edges = [(yy[indices[j]], xx[indices[j]], yy[i], xx[i]) for i in pixels for j in range(indptr[i], indptr[i + 1]) if
+             indices[j] <= i]
+    edges_index = np.array([(nodes[e[0], e[1]], nodes[e[2], e[3]]) for e in edges])
+    neighbor_edges = [[] for i in pixels]
+
+    for ii, e in enumerate(edges_index):
+        neighbor_edges[e[0]].append(ii)
+        neighbor_edges[e[1]].append(ii)
+
+    return edges_index, np.array(neighbor_edges)
 
 
 def get_graph(img, regions, graph_type, neighbors, radius):
