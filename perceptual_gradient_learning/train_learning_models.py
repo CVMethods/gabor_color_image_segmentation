@@ -75,6 +75,8 @@ if __name__ == '__main__':
             t0 = time.time()
             gradient_vectors = np.array(gradients_file["/perceptual_gradients"])
             gradient_shapes = np.array(gradients_file["/gradient_shapes"])
+            n_regions = gradients_file.attrs['num_slic_regions']
+
             t1 = time.time()
             print('Reading hdf5 features data set time: %.2fs' % (t1 - t0))
 
@@ -99,7 +101,7 @@ if __name__ == '__main__':
             output_file_name[1] = 'Models'
             output_file = '_'.join(output_file_name)
 
-            outdir = '../../data/models/' + num_imgs_dir + output_file[:-3] + '/'
+            outdir = '../../data/models/' + num_imgs_dir + output_file[:-3] + '/%d_regions/' % n_regions
 
             if not os.path.exists(outdir):
                 os.makedirs(outdir)

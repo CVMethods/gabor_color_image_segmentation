@@ -88,6 +88,8 @@ if __name__ == '__main__':
             gradient_vectors = np.array(gradients_file["/perceptual_gradients"])
             gradient_shapes = np.array(gradients_file["/gradient_shapes"])
             superpixel_vectors = np.array(gradients_file["/superpixels"])
+            n_slic_regions = str(gradients_file.attrs['num_slic_regions']) + '_regions'
+
             t1 = time.time()
             print('Reading hdf5 features data set time: %.2fs' % (t1 - t0))
 
@@ -97,7 +99,7 @@ if __name__ == '__main__':
             input_file_name = gradients_input_file.split('_')
             input_file_name[1] = 'Models'
             input_model_dir = '_'.join(input_file_name)[:-3]
-            model_input_files = sorted(os.listdir(sav_indir / input_model_dir))
+            model_input_files = sorted(os.listdir(sav_indir / input_model_dir / n_slic_regions))
 
             output_file_name = gradients_input_file.split('_')
             output_file_name[1] = 'PredictedGradients'
@@ -109,19 +111,21 @@ if __name__ == '__main__':
                                   num_imgs_dir + \
                                   'model_predictions/' + \
                                   output_file + '/' + \
+                                  n_slic_regions + '/' + \
                                   model_file_name[:-4] + '/'
+
 
                 if not os.path.exists(outdir):
                     os.makedirs(outdir)
 
                 print('Loading model: ' + model_file_name[:-4])
-                model = load(sav_indir / input_model_dir / model_file_name)
+                model = load(sav_indir / input_model_dir / n_slic_regions / model_file_name)
 
                 testing_dataset = []
                 X_test = []
                 y_test = []
                 for ii in range(len(all_imgs_data)):
-                    if img_subdirs[ii] == 'dir':  # Need to change the name of directory to add the gradients to training dataset
+                    if img_subdirs[ii] == 'test':  # Need to change the name of directory to add the gradients to training dataset
                         # testing_dataset.append(all_imgs_data[ii])
                         X_test = all_imgs_data[ii][:, :-1]
                         y_test = all_imgs_data[ii][:, -1]
@@ -140,21 +144,26 @@ if __name__ == '__main__':
                         for i_edge, e in enumerate(list(graph_pred.edges)):
                             graph_pred[e[0]][e[1]]['weight'] = normalized_pred[i_edge]
 
-                         # Segmentation parameters
-                        method = 'OT'  # Choose: 'OT' for Earth Movers Distance or 'KL' for Kullback-Leiber divergence
-                        graph_mode = 'mst'  # Choose: 'complete' to use whole graph or 'mst' to use Minimum Spanning Tree
-                        law_type = 'gamma'  # Choose 'log' for lognorm distribution or 'gamma' for gamma distribution
-                        cut_level = 0.9  # set threshold at the 90% quantile level
-
-                        graph_mst = get_mst(graph_pred)
-                        weights = nx.get_edge_attributes(graph_mst, 'weight').values()
-                        graph_weighted = graph_mst
-                        thresh, params = fit_distribution_law(list(weights), cut_level, law_type)
-                        graph_aftercut = graph_weighted.copy()
-                        graph.cut_threshold(regions_slic, graph_aftercut, thresh, in_place=True)
-                        regions_aftercut = graph2regions(graph_aftercut, regions_slic)
-
-                        pdb.set_trace()
+                        #  # Segmentation parameters
+                        # method = 'OT'  # Choose: 'OT' for Earth Movers Distance or 'KL' for Kullback-Leiber divergence
+                        # graph_mode = 'mst'  # Choose: 'complete' to use whole graph or 'mst' to use Minimum Spanning Tree
+                        # law_type = 'gamma'  # Choose 'log' for lognorm distribution or 'gamma' for gamma distribution
+                        # cut_level = 0.9  # set threshold at the 90% quantile level
+                        #
+                        # graph_mst = get_mst(graph_pred)
+                        # weights = nx.get_edge_attributes(graph_mst, 'weight').values()
+                        # graph_weighted = graph_mst
+                        # thresh, params = fit_distribution_law(list(weights), cut_level, law_type)
+                        # graph_aftercut = graph_weighted.copy()
+                        # graph.cut_threshold(regions_slic, graph_aftercut, thresh, in_place=True)
+                        # regions_aftercut = graph2regions(graph_aftercut, regions_slic)
+                        # out = color.label2rgb(regions_aftercut, images[ii], kind='avg')
+                        # out = segmentation.mark_boundaries(out, regions_aftercut, color=(0, 0, 0), mode='thick')
+                        # plt.figure(dpi=180)
+                        # ax = plt.gca()
+                        # ax.imshow(out)
+                        # plt.show(block=False)
+                        # pdb.set_trace()
                         # Visualization Params
                         save_fig = True
                         fontsize = 10

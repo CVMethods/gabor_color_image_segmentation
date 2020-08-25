@@ -312,6 +312,7 @@ if __name__ == '__main__':
 
                 for gradients in perceptual_gradients:
                     imageindexer.add(gradients)
+                    imageindexer.db.attrs['num_slic_regions'] = n_regions
 
         time_end = time.time()
         print('Gradient computation time: %.2fs' % (time_end - time_start))
