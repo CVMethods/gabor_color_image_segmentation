@@ -28,12 +28,13 @@ from source.groundtruth import *
 from source.computation_support import *
 from source.graph_operations import *
 from source.plot_save_figures import *
+from source.color_seg_methods import *
 
 
 if __name__ == '__main__':
     num_cores = -1
 
-    num_imgs = 25
+    num_imgs = 7
 
     hdf5_dir = Path('../../data/hdf5_datasets/')
     sav_dir = Path('../../data/models/')
@@ -120,14 +121,16 @@ if __name__ == '__main__':
                 X_test = []
                 y_test = []
                 for ii in range(len(all_imgs_data)):
-                    if img_subdirs[ii] == 'test':  # Need to change the name of directory to add the gradients to training dataset
+                    if img_subdirs[ii] == 'dir':  # Need to change the name of directory to add the gradients to training dataset
                         # testing_dataset.append(all_imgs_data[ii])
                         X_test = all_imgs_data[ii][:, :-1]
                         y_test = all_imgs_data[ii][:, -1]
 
                         pred = model.predict(X_test)
-                        mae_score = 1. - mean_absolute_error(y_test, pred)
-                        r2score = r2_score(y_test, pred)
+                        normalized_pred = (pred-min(pred))/(max(pred)-min(pred))
+
+                        mae_score = 1. - mean_absolute_error(y_test, normalized_pred)
+                        r2score = r2_score(y_test, normalized_pred)
                         print('Score :',  1. - mae_score, r2score)
 
                         regions_slic = superpixel_vectors[ii].reshape((img_shapes[ii][0], img_shapes[ii][1]))
@@ -135,8 +138,23 @@ if __name__ == '__main__':
                         # graph_pred = graph_raw.copy()
 
                         for i_edge, e in enumerate(list(graph_pred.edges)):
-                            graph_pred[e[0]][e[1]]['weight'] = pred[i_edge]
+                            graph_pred[e[0]][e[1]]['weight'] = normalized_pred[i_edge]
 
+                         # Segmentation parameters
+                        method = 'OT'  # Choose: 'OT' for Earth Movers Distance or 'KL' for Kullback-Leiber divergence
+                        graph_mode = 'mst'  # Choose: 'complete' to use whole graph or 'mst' to use Minimum Spanning Tree
+                        law_type = 'gamma'  # Choose 'log' for lognorm distribution or 'gamma' for gamma distribution
+                        cut_level = 0.9  # set threshold at the 90% quantile level
+
+                        graph_mst = get_mst(graph_pred)
+                        weights = nx.get_edge_attributes(graph_mst, 'weight').values()
+                        graph_weighted = graph_mst
+                        thresh, params = fit_distribution_law(list(weights), cut_level, law_type)
+                        graph_aftercut = graph_weighted.copy()
+                        graph.cut_threshold(regions_slic, graph_aftercut, thresh, in_place=True)
+                        regions_aftercut = graph2regions(graph_aftercut, regions_slic)
+
+                        pdb.set_trace()
                         # Visualization Params
                         save_fig = True
                         fontsize = 10

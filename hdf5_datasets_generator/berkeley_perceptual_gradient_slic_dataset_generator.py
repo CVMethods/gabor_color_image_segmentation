@@ -153,7 +153,11 @@ def perceptual_gradient_computation(im_file, img, g_energies):
     fontsize = 10
     file_name = im_file
 
-    outdir = '../outdir/perceptual_gradient/' + num_imgs_dir + 'slic_level/' + output_file[:-3] + '/computation_support/'
+    outdir = '../outdir/perceptual_gradient/' + \
+             num_imgs_dir + 'slic_level/' + \
+             output_file[:-3] + '/' +\
+             str(n_regions) + '_regions/' + \
+             '/computation_support/'
 
     if not os.path.exists(outdir):
         os.makedirs(outdir)
@@ -174,7 +178,12 @@ def perceptual_gradient_computation(im_file, img, g_energies):
     show_and_save_imgraph(img, regions_slic, graph_raw, fig_title, img_name, fontsize, save_fig, outdir, file_name,
                           colbar_lim)
 
-    outdir = '../outdir/perceptual_gradient/' + num_imgs_dir + 'slic_level/' + output_file[:-3] + '/gradients/'
+    outdir = '../outdir/perceptual_gradient/' + \
+             num_imgs_dir + \
+             'slic_level/' \
+             + output_file[:-3] + '/' +\
+             str(n_regions) + '_regions/' + \
+             'gradients/'
 
     if not os.path.exists(outdir):
         os.makedirs(outdir)
@@ -214,7 +223,7 @@ def perceptual_gradient_computation(im_file, img, g_energies):
 if __name__ == '__main__':
     num_cores = -1
 
-    num_imgs = 25
+    num_imgs = 7
 
     hdf5_dir = Path('../../data/hdf5_datasets/')
 
@@ -257,7 +266,7 @@ if __name__ == '__main__':
     print('Reading hdf5 image data set time: %.2fs' % (t1 - t0))
 
     # Superpixels function parameters
-    n_regions = 500 * 8
+    n_regions = 500 * 4
     convert2lab = True
 
     # Graph function parameters
