@@ -284,7 +284,7 @@ if __name__ == '__main__':
 
     plt.figure(dpi=180)
     ax = plt.gca()
-    ax.boxplot(all_f_scores[index].T)
+    ax.boxplot(all_f_scores[index].T, vert=False)
     ax.set_title('Thr graphcut F scores: ' + law_type + ' dist, ' + graph_mode + ' graph')
     # ax.legend(input_files, fontsize=5, loc='best', bbox_to_anchor=(1, 1))
     ax.set_yticklabels(input_files[index], fontsize=5)
