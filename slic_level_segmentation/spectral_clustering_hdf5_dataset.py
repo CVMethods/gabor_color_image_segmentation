@@ -271,7 +271,6 @@ if __name__ == '__main__':
 
     if not os.path.exists(outdir):
         os.makedirs(outdir)
-    pdb.set_trace()
 
     plt.figure(dpi=180)
     ax = plt.gca()
