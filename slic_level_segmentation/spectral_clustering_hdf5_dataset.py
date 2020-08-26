@@ -12,7 +12,7 @@ from source.color_seg_methods import *
 if __name__ == '__main__':
     num_cores = -1
 
-    num_imgs = 25
+    num_imgs = 7
 
     hdf5_dir = Path('../../data/hdf5_datasets/')
 
@@ -84,6 +84,7 @@ if __name__ == '__main__':
             method = 'OT'  # Choose: 'OT' for Earth Movers Distance or 'KL' for Kullback-Leiber divergence
             aff_norm_method = 'global'  # Choose: 'global' or 'local'
             graph_mode = 'complete'  # Choose: 'complete' to use whole graph or 'mst' to use Minimum Spanning Tree
+            num_clusters = 'min'
 
             metrics_values = []
             for im_file, img, g_energies in zip(img_ids, images, gabor_features_norm):
@@ -109,6 +110,19 @@ if __name__ == '__main__':
                     weights = nx.get_edge_attributes(graph_mst, 'weight').values()
                     graph_weighted = graph_mst
 
+                ''' Getting number of cluster based on ground truth segmentations '''
+                groundtruth_segments = np.array(get_segment_from_filename(im_file))
+                n_clusters = get_num_segments(groundtruth_segments)
+
+                if num_clusters == 'max':
+                    k = int(n_clusters[0])
+                elif num_clusters == 'min':
+                    k = int(n_clusters[1])
+                elif num_clusters == 'mean':
+                    k = int(n_clusters[2])
+                elif num_clusters == 'hmean':
+                    k = int(n_clusters[3])
+
                 ''' Performing Spectral Clustering on weighted graph '''
                 aff_matrix, graph_normalized = distance_matrix_normalization(graph_weighted, weights, aff_norm_method, regions_slic)
 
@@ -120,8 +134,6 @@ if __name__ == '__main__':
                 regions_spec = get_sgmnt_regions(graph_weighted, segmentation.labels_, regions_slic)
 
                 ''' Evaluation of segmentation'''
-                groundtruth_segments = np.array(get_segment_from_filename(im_file))
-
                 if len(np.unique(regions_spec)) == 1:
                     metrics_values.append((0., 0.))
                 else:
@@ -196,29 +208,11 @@ if __name__ == '__main__':
                 if not os.path.exists(outdir):
                     os.makedirs(outdir)
 
-
-                fig_title = 'Spectral Clustering Result '
+                fig_title = 'Spectral Clustering Result k=%d' % k
                 fig_label = (vals['recall'], vals['precision'], (t1 - t0))
                 img_name = '_spec_result'
                 show_and_save_result(img, regions_spec, fig_title, fig_label, img_name, fontsize, save_fig, outdir, file_name)
 
-                # f = open(outdir + '00-params_setup.txt', 'wb')
-                # f.write('SPECTRAL CLUSTERING <PARAMETER SETUP> <%s> \n \n' % datetime.datetime.now())
-                # f.write('Superpixels function parameters: \n')
-                # f.write(' n_regions = %i ~ %i \n convert2lab = %r \n\n' % (n_regions, len(np.unique(regions)), convert2lab))
-                # f.write('Graph function parameters: \n')
-                # if graph_type == 'knn':
-                #     f.write(' graph_type = %s \n kneighbors = %i \n\n' % (graph_type, kneighbors))
-                # elif graph_type == 'eps':
-                #     f.write(' graph_type = %s \n radius = %i \n\n' % (graph_type, radius))
-                # else:
-                #     f.write(' graph_type = %s \n\n' % graph_type)
-                # f.write('Color quantification parameters: \n')
-                # f.write(' method = %s \n n_bins = %i \n\n' % (method, n_bins))
-                # f.write('Particular parameters: \n')
-                # f.write(' sigma_method = %s ' % sigma_method)
-                # f.close()
-                # plt.show()
                 plt.close('all')
 
             metrics_values = np.array(metrics_values)
