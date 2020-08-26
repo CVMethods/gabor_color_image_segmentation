@@ -19,7 +19,6 @@ import os
 import pdb
 import numpy as np
 import matplotlib
-matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 import pandas as pd
 import seaborn as sns
@@ -42,7 +41,7 @@ from PIL import Image
 sys.path.append('../')
 from source.groundtruth import *
 from source.metrics import *
-
+from source.computation_support import *
 
 def clustering_segmentation_and_metrics(i_dataset, dataset, algo_params, num_clusters):
     # update parameters with dataset-specific values
@@ -196,14 +195,6 @@ def clustering_segmentation_and_metrics(i_dataset, dataset, algo_params, num_clu
     # return segmentations, img_metrics
     return img_metrics
 
-
-def get_num_segments(segments):
-    n_labels = []
-    for truth in segments:
-        n_labels.append(len(np.unique(truth)))
-    n_labels = np.array(n_labels)
-
-    return np.array((max(n_labels), min(n_labels), int(n_labels.mean()), int(hmean(n_labels))))
 
 
 def prepare_dataset(img_id, image, gabor_features, img_shape):

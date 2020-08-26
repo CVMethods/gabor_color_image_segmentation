@@ -149,3 +149,12 @@ def em_dist_mine(signature, CM):
 
 def dist_label(labels):
     return (labels[0] != labels[1]) * 1.
+
+
+def get_num_segments(segments):
+    n_labels = []
+    for truth in segments:
+        n_labels.append(len(np.unique(truth)))
+    n_labels = np.array(n_labels)
+
+    return np.array((max(n_labels), min(n_labels), int(n_labels.mean()), int(hmean(n_labels))))
