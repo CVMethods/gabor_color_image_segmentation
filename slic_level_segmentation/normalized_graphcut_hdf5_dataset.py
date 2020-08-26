@@ -252,26 +252,26 @@ if __name__ == '__main__':
 
             plt.close('all')
 
-            all_f_scores = np.array(all_f_scores)
-            index = np.argsort(np.median(all_f_scores, axis=1))
-            input_files = np.array(input_files)
+    all_f_scores = np.array(all_f_scores)
+    index = np.argsort(np.median(all_f_scores, axis=1))
+    input_files = np.array(input_files)
 
-            outdir = '../outdir/' + \
-                     'slic_level_segmentation/' + \
-                     num_imgs_dir + \
-                     'normalized_graphcut/' + \
-                     method + '/' + \
-                     graph_type + '_graph/'
+    outdir = '../outdir/' + \
+             'slic_level_segmentation/' + \
+             num_imgs_dir + \
+             'normalized_graphcut/' + \
+             method + '/' + \
+             graph_type + '_graph/'
 
-            if not os.path.exists(outdir):
-                os.makedirs(outdir)
+    if not os.path.exists(outdir):
+        os.makedirs(outdir)
 
-            plt.figure(dpi=180)
-            ax = plt.gca()
-            ax.boxplot(all_f_scores[index].T, vert=False)
-            ax.set_title('Normalized graphcut F scores: ' + aff_norm_method + ' norm, ' + graph_mode + ' graph')
-            # ax.legend(input_files, fontsize=5, loc='best', bbox_to_anchor=(1, 1))
-            ax.set_yticklabels(input_files[index], fontsize=5)
-            plt.grid()
-            plt.savefig(outdir + 'Normalized_graphcut_Fscores_' + aff_norm_method + '_' + graph_mode + '_boxplot.png',
-                        bbox_inches='tight')
+    plt.figure(dpi=180)
+    ax = plt.gca()
+    ax.boxplot(all_f_scores[index].T, vert=False)
+    ax.set_title('Normalized graphcut F scores: ' + aff_norm_method + ' norm, ' + graph_mode + ' graph')
+    # ax.legend(input_files, fontsize=5, loc='best', bbox_to_anchor=(1, 1))
+    ax.set_yticklabels(input_files[index], fontsize=5)
+    plt.grid()
+    plt.savefig(outdir + 'Normalized_graphcut_Fscores_' + aff_norm_method + '_' + graph_mode + '_boxplot.png',
+                bbox_inches='tight')
