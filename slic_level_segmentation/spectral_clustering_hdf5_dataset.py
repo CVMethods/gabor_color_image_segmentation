@@ -9,6 +9,138 @@ from source.graph_operations import *
 from source.plot_save_figures import *
 from source.color_seg_methods import *
 
+def get_spectral_clustering_metrics(im_file, img, g_energies):
+    print('##############################', im_file, '##############################')
+
+    ''' Computing superpixel regions '''
+    regions_slic = slic_superpixel(img, n_regions, convert2lab)
+
+    ''' Computing Graph '''
+    graph_raw = get_graph(img, regions_slic, graph_type, kneighbors, radius)
+
+    ''' Updating edges weights with similarity measure (OT/KL) '''
+    g_energies_sum = np.sum(g_energies, axis=-1)
+    graph_weighted = update_edges_weight(regions_slic, graph_raw, g_energies_sum, ground_distance, method)
+
+    if graph_mode == 'complete':
+        weights = nx.get_edge_attributes(graph_weighted, 'weight').values()
+    elif graph_mode == 'mst':
+        # Compute Minimum Spanning Tree
+        graph_mst = get_mst(graph_weighted)
+        weights = nx.get_edge_attributes(graph_mst, 'weight').values()
+        graph_weighted = graph_mst
+
+    ''' Getting number of cluster based on ground truth segmentations '''
+    groundtruth_segments = np.array(get_segment_from_filename(im_file))
+    n_clusters = get_num_segments(groundtruth_segments)
+
+    if num_clusters == 'max':
+        k = int(n_clusters[0])
+    elif num_clusters == 'min':
+        k = int(n_clusters[1])
+    elif num_clusters == 'mean':
+        k = int(n_clusters[2])
+    elif num_clusters == 'hmean':
+        k = int(n_clusters[3])
+
+    ''' Performing Spectral Clustering on weighted graph '''
+    aff_matrix, graph_normalized = distance_matrix_normalization(graph_weighted, weights, aff_norm_method, regions_slic)
+
+    t0 = time.time()
+    segmentation = SpectralClustering(n_clusters=15, assign_labels='discretize', affinity='precomputed',
+                                      n_init=100, n_jobs=-1).fit(aff_matrix)
+    t1 = time.time()
+    print(' Computing time: %.2fs' % (t1 - t0))
+    regions_spec = get_sgmnt_regions(graph_weighted, segmentation.labels_, regions_slic)
+
+    ''' Evaluation of segmentation'''
+    if len(np.unique(regions_spec)) == 1:
+        # metrics_values.append((0., 0.))
+        metrics_vals = (0., 0.)
+    else:
+        m = metrics(None, regions_spec, groundtruth_segments)
+        m.set_metrics()
+        # m.display_metrics()
+        vals = m.get_metrics()
+        # metrics_values.append((vals['recall'], vals['precision']))
+        metrics_vals = (vals['recall'], vals['precision'])
+
+    ##############################################################################
+    '''Visualization Section: show and/or save images'''
+    # General Params
+    save_fig = True
+    fontsize = 10
+    file_name = im_file
+
+    outdir = '../outdir/' + \
+             'slic_level_segmentation/' + \
+             num_imgs_dir + \
+             'spectral_clustering/' + \
+             method + '/' + \
+             graph_type + '_graph/' + \
+             features_input_file[:-3] + '/' + \
+             aff_norm_method + '_normalization/' + \
+             graph_mode + '_graph/' + \
+             'computation_support/'
+
+    if not os.path.exists(outdir):
+        os.makedirs(outdir)
+
+    # Show Input image
+    fig_title = 'Input Image'
+    show_and_save_img(img, fig_title, fontsize, save_fig, outdir, file_name)
+
+    # Show SLIC result
+    fig_title = 'Superpixel Regions'
+    img_name = '_slic'
+    show_and_save_regions(img, regions_slic, fig_title, img_name, fontsize, save_fig, outdir, file_name)
+
+    # Show Graph with uniform weight
+    fig_title = 'Graph (' + graph_type + ')'
+    img_name = '_raw_' + graph_type
+    colbar_lim = (0, 1)
+    show_and_save_imgraph(img, regions_slic, graph_raw, fig_title, img_name, fontsize, save_fig, outdir, file_name,
+                          colbar_lim)
+
+    # Show Graph with updated weights
+    fig_title = graph_mode + ' Weighted Graph (' + graph_type + ')'
+    img_name = '_weighted_' + graph_type
+    colbar_lim = (min(weights), max(weights))
+    show_and_save_imgraph(img, regions_slic, graph_weighted, fig_title, img_name, fontsize, save_fig, outdir, file_name,
+                          colbar_lim)
+
+    # fig_title = 'Spectral Graph'
+    # img_name = '_spec_graph'
+    # show_and_save_spectralgraph(graph, fig_title, img_name, fontsize, save_fig, outdir, file_name)
+
+    fig_title = 'Affinity Matrix'
+    img_name = '_aff_mat'
+    show_and_save_affmat(aff_matrix, fig_title, img_name, fontsize, save_fig, outdir, file_name)
+    ##############################################################################
+    # Segmentation results visualization
+    outdir = '../outdir/' + \
+             'slic_level_segmentation/' + \
+             num_imgs_dir + \
+             'spectral_clustering/' + \
+             method + '/' + \
+             graph_type + '_graph/' + \
+             features_input_file[:-3] + '/' + \
+             aff_norm_method + '_normalization/' + \
+             graph_mode + '_graph/' + \
+             'results/'
+
+    if not os.path.exists(outdir):
+        os.makedirs(outdir)
+
+    fig_title = 'Spectral Clustering Result k=%d' % k
+    fig_label = (vals['recall'], vals['precision'], (t1 - t0))
+    img_name = '_spec_result'
+    show_and_save_result(img, regions_spec, fig_title, fig_label, img_name, fontsize, save_fig, outdir, file_name)
+
+    plt.close('all')
+
+    return metrics_vals
+
 if __name__ == '__main__':
     num_cores = -1
 
@@ -87,133 +219,19 @@ if __name__ == '__main__':
             num_clusters = 'min'
 
             metrics_values = []
-            for im_file, img, g_energies in zip(img_ids, images, gabor_features_norm):
-                time_total = time.time()
+            metrics_values = Parallel(n_jobs=num_cores)(
+                delayed(get_spectral_clustering_metrics)(im_file, img, g_energies) for im_file, img, g_energies in zip(img_ids, images, gabor_features_norm))
 
-                print('##############################', im_file, '##############################')
-
-                ''' Computing superpixel regions '''
-                regions_slic = slic_superpixel(img, n_regions, convert2lab)
-
-                ''' Computing Graph '''
-                graph_raw = get_graph(img, regions_slic, graph_type, kneighbors, radius)
-
-                ''' Updating edges weights with similarity measure (OT/KL) '''
-                g_energies_sum = np.sum(g_energies, axis=-1)
-                graph_weighted = update_edges_weight(regions_slic, graph_raw, g_energies_sum, ground_distance, method)
-
-                if graph_mode == 'complete':
-                    weights = nx.get_edge_attributes(graph_weighted, 'weight').values()
-                elif graph_mode == 'mst':
-                    # Compute Minimum Spanning Tree
-                    graph_mst = get_mst(graph_weighted)
-                    weights = nx.get_edge_attributes(graph_mst, 'weight').values()
-                    graph_weighted = graph_mst
-
-                ''' Getting number of cluster based on ground truth segmentations '''
-                groundtruth_segments = np.array(get_segment_from_filename(im_file))
-                n_clusters = get_num_segments(groundtruth_segments)
-
-                if num_clusters == 'max':
-                    k = int(n_clusters[0])
-                elif num_clusters == 'min':
-                    k = int(n_clusters[1])
-                elif num_clusters == 'mean':
-                    k = int(n_clusters[2])
-                elif num_clusters == 'hmean':
-                    k = int(n_clusters[3])
-
-                ''' Performing Spectral Clustering on weighted graph '''
-                aff_matrix, graph_normalized = distance_matrix_normalization(graph_weighted, weights, aff_norm_method, regions_slic)
-
-                t0 = time.time()
-                segmentation = SpectralClustering(n_clusters=15, assign_labels='discretize', affinity='precomputed',
-                                                  n_init=100, n_jobs=-1).fit(aff_matrix)
-                t1 = time.time()
-                print(' Computing time: %.2fs' % (t1 - t0))
-                regions_spec = get_sgmnt_regions(graph_weighted, segmentation.labels_, regions_slic)
-
-                ''' Evaluation of segmentation'''
-                if len(np.unique(regions_spec)) == 1:
-                    metrics_values.append((0., 0.))
-                else:
-                    m = metrics(None, regions_spec, groundtruth_segments)
-                    m.set_metrics()
-                    # m.display_metrics()
-                    vals = m.get_metrics()
-                    metrics_values.append((vals['recall'], vals['precision']))
-
-                ##############################################################################
-                '''Visualization Section: show and/or save images'''
-                # General Params
-                save_fig = True
-                fontsize = 10
-                file_name = im_file
-
-                outdir = '../outdir/' + \
-                         'slic_level_segmentation/' + \
-                         num_imgs_dir + \
-                         'spectral_clustering/' + \
-                         method + '/' + \
-                         graph_type + '_graph/' + \
-                         features_input_file[:-3] + '/' + \
-                         aff_norm_method + '_normalization/' + \
-                         graph_mode + '_graph/' +\
-                         'computation_support/'
-
-                if not os.path.exists(outdir):
-                    os.makedirs(outdir)
-
-                # Show Input image
-                fig_title = 'Input Image'
-                show_and_save_img(img, fig_title, fontsize, save_fig, outdir, file_name)
-
-                # Show SLIC result
-                fig_title = 'Superpixel Regions'
-                img_name = '_slic'
-                show_and_save_regions(img, regions_slic, fig_title, img_name, fontsize, save_fig, outdir, file_name)
-
-                # Show Graph with uniform weight
-                fig_title = 'Graph (' + graph_type + ')'
-                img_name = '_raw_' + graph_type
-                colbar_lim = (0, 1)
-                show_and_save_imgraph(img, regions_slic, graph_raw, fig_title, img_name, fontsize, save_fig, outdir, file_name, colbar_lim)
-
-                # Show Graph with updated weights
-                fig_title = graph_mode + ' Weighted Graph (' + graph_type + ')'
-                img_name = '_weighted_' + graph_type
-                colbar_lim = (min(weights), max(weights))
-                show_and_save_imgraph(img, regions_slic, graph_weighted, fig_title, img_name, fontsize, save_fig, outdir, file_name, colbar_lim)
-
-                # fig_title = 'Spectral Graph'
-                # img_name = '_spec_graph'
-                # show_and_save_spectralgraph(graph, fig_title, img_name, fontsize, save_fig, outdir, file_name)
-
-                fig_title = 'Affinity Matrix'
-                img_name = '_aff_mat'
-                show_and_save_affmat(aff_matrix, fig_title, img_name, fontsize, save_fig, outdir, file_name)
-                ##############################################################################
-                # Segmentation results visualization
-                outdir = '../outdir/' + \
-                         'slic_level_segmentation/' + \
-                         num_imgs_dir + \
-                         'spectral_clustering/' + \
-                         method + '/' + \
-                         graph_type + '_graph/' + \
-                         features_input_file[:-3] + '/' + \
-                         aff_norm_method + '_normalization/' + \
-                         graph_mode + '_graph/' + \
-                         'results/'
-
-                if not os.path.exists(outdir):
-                    os.makedirs(outdir)
-
-                fig_title = 'Spectral Clustering Result k=%d' % k
-                fig_label = (vals['recall'], vals['precision'], (t1 - t0))
-                img_name = '_spec_result'
-                show_and_save_result(img, regions_spec, fig_title, fig_label, img_name, fontsize, save_fig, outdir, file_name)
-
-                plt.close('all')
+            outdir = '../outdir/' + \
+             'slic_level_segmentation/' + \
+             num_imgs_dir + \
+             'spectral_clustering/' + \
+             method + '/' + \
+             graph_type + '_graph/' + \
+             features_input_file[:-3] + '/' + \
+             aff_norm_method + '_normalization/' + \
+             graph_mode + '_graph/' + \
+             'results/'
 
             metrics_values = np.array(metrics_values)
             recall = metrics_values[:, 0]
