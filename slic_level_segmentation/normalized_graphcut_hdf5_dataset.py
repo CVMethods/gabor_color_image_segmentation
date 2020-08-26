@@ -182,6 +182,8 @@ if __name__ == '__main__':
 
     input_files = os.listdir(hdf5_indir_feat)
     all_f_scores = []
+    all_precisions = []
+    all_recalls = []
     for features_input_file in input_files:
         with h5py.File(hdf5_indir_feat / features_input_file, "r+") as features_file:
             print('Reading Berkeley features data set')
@@ -234,7 +236,11 @@ if __name__ == '__main__':
 
             metrics_values = np.array(metrics_values)
             recall = metrics_values[:, 0]
+            all_recalls.append(recall)
+
             precision = metrics_values[:, 1]
+            all_precisions.append(precision)
+
             f_score = hmean((precision, recall), axis=0)
             all_f_scores.append(f_score)
 
@@ -270,10 +276,6 @@ if __name__ == '__main__':
 
             plt.close('all')
 
-    all_f_scores = np.array(all_f_scores)
-    index = np.argsort(np.median(all_f_scores, axis=1))
-    input_files = np.array(input_files)
-
     outdir = '../outdir/' + \
              'slic_level_segmentation/' + \
              num_imgs_dir + \
@@ -284,6 +286,10 @@ if __name__ == '__main__':
     if not os.path.exists(outdir):
         os.makedirs(outdir)
 
+    all_f_scores = np.array(all_f_scores)
+    index = np.argsort(np.median(all_f_scores, axis=1))
+    input_files = np.array(input_files)
+
     plt.figure(dpi=180)
     ax = plt.gca()
     ax.boxplot(all_f_scores[index].T, vert=False)
@@ -293,3 +299,32 @@ if __name__ == '__main__':
     plt.grid()
     plt.savefig(outdir + 'Normalized_graphcut_Fscores_' + aff_norm_method + '_' + graph_mode + '_boxplot.png',
                 bbox_inches='tight')
+
+    all_recalls = np.array(all_recalls)
+    index = np.argsort(np.median(all_recalls, axis=1))
+    input_files = np.array(input_files)
+
+    plt.figure(dpi=180)
+    ax = plt.gca()
+    ax.boxplot(all_recalls[index].T, vert=False)
+    ax.set_title('Normalized graphcut recalls: ' + aff_norm_method + ' norm, ' + graph_mode + ' graph')
+    # ax.legend(input_files, fontsize=5, loc='best', bbox_to_anchor=(1, 1))
+    ax.set_yticklabels(input_files[index], fontsize=5)
+    plt.grid()
+    plt.savefig(outdir + 'Normalized_graphcut_recalls_' + aff_norm_method + '_' + graph_mode + '_boxplot.png',
+                bbox_inches='tight')
+
+    all_precisions = np.array(all_precisions)
+    index = np.argsort(np.median(all_precisions, axis=1))
+    input_files = np.array(input_files)
+
+    plt.figure(dpi=180)
+    ax = plt.gca()
+    ax.boxplot(all_precisions[index].T, vert=False)
+    ax.set_title('Normalized graphcut precisions: ' + aff_norm_method + ' norm, ' + graph_mode + ' graph')
+    # ax.legend(input_files, fontsize=5, loc='best', bbox_to_anchor=(1, 1))
+    ax.set_yticklabels(input_files[index], fontsize=5)
+    plt.grid()
+    plt.savefig(outdir + 'Normalized_graphcut_precisions_' + aff_norm_method + '_' + graph_mode + '_boxplot.png',
+                bbox_inches='tight')
+
