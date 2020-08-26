@@ -9,10 +9,142 @@ from source.graph_operations import *
 from source.plot_save_figures import *
 from source.color_seg_methods import *
 
+
+def get_normalized_cuts_metrics(im_file, img, g_energies):
+    print('##############################', im_file, '##############################')
+
+    ''' Computing superpixel regions '''
+    regions_slic = slic_superpixel(img, n_regions, convert2lab)
+
+    ''' Computing Graph '''
+    graph_raw = get_graph(img, regions_slic, graph_type, kneighbors, radius)
+
+    ''' Updating edges weights with optimal transport '''
+    g_energies_sum = np.sum(g_energies, axis=-1)
+    graph_weighted = update_edges_weight(regions_slic, graph_raw, g_energies_sum, ground_distance, method)
+
+    if graph_mode == 'complete':
+        weights = nx.get_edge_attributes(graph_weighted, 'weight').values()
+    elif graph_mode == 'mst':
+        # Compute Minimum Spanning Tree
+        graph_mst = get_mst(graph_weighted)
+        weights = nx.get_edge_attributes(graph_mst, 'weight').values()
+        graph_weighted = graph_mst
+
+    '''  Performing Normalized cut on weighted graph  '''
+    aff_matrix, graph_normalized = distance_matrix_normalization(graph_weighted, weights, aff_norm_method, regions_slic)
+
+    t0 = time.time()
+    regions_ncut = graph.cut_normalized(regions_slic, graph_normalized)
+    t1 = time.time()
+    print(' Computing time: %.2fs' % (t1 - t0))
+
+    ''' Evaluation of segmentation'''
+    groundtruth_segments = np.array(get_segment_from_filename(im_file))
+
+    if len(np.unique(regions_ncut)) == 1:
+        # metrics_values.append((0., 0.))
+        metrics_vals = (0., 0.)
+    else:
+        m = metrics(None, regions_ncut, groundtruth_segments)
+        m.set_metrics()
+        # m.display_metrics()
+        vals = m.get_metrics()
+        metrics_vals = (vals['recall'], vals['precision'])
+
+    ##############################################################################
+    '''Visualization Section: show and/or save images'''
+    # General Params
+    save_fig = True
+    fontsize = 10
+    file_name = im_file
+
+    outdir = '../outdir/' + \
+             'slic_level_segmentation/' + \
+             num_imgs_dir + \
+             'normalized_graphcut/' + \
+             method + '/' + \
+             graph_type + '_graph/' + \
+             features_input_file[:-3] + '/' + \
+             aff_norm_method + '_normalization/' + \
+             graph_mode + '_graph/' + \
+             'computation_support/'
+
+    if not os.path.exists(outdir):
+        os.makedirs(outdir)
+
+    # Show Input image
+    fig_title = 'Input Image'
+    show_and_save_img(img, fig_title, fontsize, save_fig, outdir, im_file)
+
+    # Show SLIC result
+    fig_title = 'Superpixel Regions'
+    img_name = '_slic'
+    show_and_save_regions(img, regions_slic, fig_title, img_name, fontsize, save_fig, outdir, file_name)
+
+    # Show Graph with uniform weight
+    fig_title = 'Graph (' + graph_type + ')'
+    img_name = '_raw_' + graph_type
+    colbar_lim = (0, 1)
+    show_and_save_imgraph(img, regions_slic, graph_raw, fig_title, img_name, fontsize, save_fig, outdir, file_name,
+                          colbar_lim)
+
+    # Show Graph with updated weights
+    fig_title = graph_mode + ' Weighted Graph (' + graph_type + ')'
+    img_name = '_weighted_' + graph_type
+    colbar_lim = (min(weights), max(weights))
+    show_and_save_imgraph(img, regions_slic, graph_weighted, fig_title, img_name, fontsize, save_fig, outdir, file_name,
+                          colbar_lim)
+
+    fig_title = 'Affinity Matrix'
+    img_name = '_aff_mat'
+    show_and_save_affmat(aff_matrix, fig_title, img_name, fontsize, save_fig, outdir, file_name)
+    ##############################################################################
+    # Segmentation results visualization
+    outdir = '../outdir/' + \
+             'slic_level_segmentation/' + \
+             num_imgs_dir + \
+             'normalized_graphcut/' + \
+             method + '/' + \
+             graph_type + '_graph/' + \
+             features_input_file[:-3] + '/' + \
+             aff_norm_method + '_normalization/' + \
+             graph_mode + '_graph/' + \
+             'results/'
+
+    if not os.path.exists(outdir):
+        os.makedirs(outdir)
+
+    fig_title = 'Normalized GraphCut Result '
+    fig_label = (vals['recall'], vals['precision'], (t1 - t0))
+    img_name = '_ncut_result'
+    show_and_save_result(img, regions_ncut, fig_title, fig_label, img_name, fontsize, save_fig, outdir, file_name)
+
+    # f = open(outdir + '00-params_setup.txt', 'wb')
+    # f.write('NORMALIZED GRAPHCUT <PARAMETER SETUP> <%s> \n \n' % datetime.datetime.now())
+    # f.write('Superpixels function parameters: \n')
+    # f.write(' n_regions = %i ~ %i \n convert2lab = %r \n\n' % (n_regions, len(np.unique(regions)), convert2lab))
+    # f.write('Graph function parameters: \n')
+    # if graph_type == 'knn':
+    #     f.write(' graph_type = %s \n kneighbors = %i \n\n' % (graph_type, kneighbors))
+    # elif graph_type == 'eps':
+    #     f.write(' graph_type = %s \n radius = %i \n\n' % (graph_type, radius))
+    # else:
+    #     f.write(' graph_type = %s \n\n' % graph_type)
+    # f.write('Color quantification parameters: \n')
+    # f.write(' method = %s \n n_bins = %i \n\n' % (method, n_bins))
+    # f.write('Particular parameters: \n')
+    # f.write(' sigma_method = %s ' % sigma_method)
+    # f.close()
+    plt.close('all')
+
+    return metrics_vals
+
+
 if __name__ == '__main__':
     num_cores = -1
 
-    num_imgs = 25
+    num_imgs = 7
 
     hdf5_dir = Path('../../data/hdf5_datasets/')
 
@@ -85,134 +217,20 @@ if __name__ == '__main__':
             aff_norm_method = 'global'  # Choose: 'global' or 'local'
             graph_mode = 'complete'  # Choose: 'complete' to use whole graph or 'mst' to use Minimum Spanning Tree
 
-            metrics_values = []
-            for im_file, img, g_energies in zip(img_ids, images, gabor_features_norm):
-                time_total = time.time()
+            metrics_values = Parallel(n_jobs=num_cores)(
+                delayed(get_normalized_cuts_metrics)(im_file, img, g_energies) for im_file, img, g_energies in
+                zip(img_ids, images, gabor_features_norm))
 
-                print('##############################', im_file, '##############################')
-
-                ''' Computing superpixel regions '''
-                regions_slic = slic_superpixel(img, n_regions, convert2lab)
-
-                ''' Computing Graph '''
-                graph_raw = get_graph(img, regions_slic, graph_type, kneighbors, radius)
-
-                ''' Updating edges weights with optimal transport '''
-                g_energies_sum = np.sum(g_energies, axis=-1)
-                graph_weighted = update_edges_weight(regions_slic, graph_raw, g_energies_sum, ground_distance, method)
-
-                if graph_mode == 'complete':
-                    weights = nx.get_edge_attributes(graph_weighted, 'weight').values()
-                elif graph_mode == 'mst':
-                    # Compute Minimum Spanning Tree
-                    graph_mst = get_mst(graph_weighted)
-                    weights = nx.get_edge_attributes(graph_mst, 'weight').values()
-                    graph_weighted = graph_mst
-
-                '''  Performing Normalized cut on weighted graph  '''
-                aff_matrix, graph_normalized = distance_matrix_normalization(graph_weighted, weights, aff_norm_method, regions_slic)
-
-                t0 = time.time()
-                regions_ncut = graph.cut_normalized(regions_slic, graph_normalized)
-                t1 = time.time()
-                print(' Computing time: %.2fs' % (t1 - t0))
-
-                ''' Evaluation of segmentation'''
-                groundtruth_segments = np.array(get_segment_from_filename(im_file))
-
-                if len(np.unique(regions_ncut)) == 1:
-                    metrics_values.append((0., 0.))
-                else:
-                    m = metrics(None, regions_ncut, groundtruth_segments)
-                    m.set_metrics()
-                    # m.display_metrics()
-                    vals = m.get_metrics()
-                    metrics_values.append((vals['recall'], vals['precision']))
-
-                ##############################################################################
-                '''Visualization Section: show and/or save images'''
-                # General Params
-                save_fig = True
-                fontsize = 10
-                file_name = im_file
-
-                outdir = '../outdir/' + \
-                         'slic_level_segmentation/' + \
-                         num_imgs_dir + \
-                         'normalized_graphcut/' + \
-                         method + '/' + \
-                         graph_type + '_graph/' + \
-                         features_input_file[:-3] + '/' + \
-                         aff_norm_method + '_normalization/' + \
-                         graph_mode + '_graph/' + \
-                         'computation_support/'
-
-                if not os.path.exists(outdir):
-                    os.makedirs(outdir)
-
-                # Show Input image
-                fig_title = 'Input Image'
-                show_and_save_img(img, fig_title, fontsize, save_fig, outdir, im_file)
-
-                # Show SLIC result
-                fig_title = 'Superpixel Regions'
-                img_name = '_slic'
-                show_and_save_regions(img, regions_slic, fig_title, img_name, fontsize, save_fig, outdir, file_name)
-
-                # Show Graph with uniform weight
-                fig_title = 'Graph (' + graph_type + ')'
-                img_name = '_raw_' + graph_type
-                colbar_lim = (0, 1)
-                show_and_save_imgraph(img, regions_slic, graph_raw, fig_title, img_name, fontsize, save_fig, outdir, file_name, colbar_lim)
-
-                # Show Graph with updated weights
-                fig_title = graph_mode + ' Weighted Graph (' + graph_type + ')'
-                img_name = '_weighted_' + graph_type
-                colbar_lim = (min(weights), max(weights))
-                show_and_save_imgraph(img, regions_slic, graph_weighted, fig_title, img_name, fontsize, save_fig, outdir, file_name, colbar_lim)
-
-                fig_title = 'Affinity Matrix'
-                img_name = '_aff_mat'
-                show_and_save_affmat(aff_matrix, fig_title, img_name, fontsize, save_fig, outdir, file_name)
-                ##############################################################################
-                # Segmentation results visualization
-                outdir = '../outdir/' + \
-                         'slic_level_segmentation/' + \
-                         num_imgs_dir + \
-                         'normalized_graphcut/' + \
-                         method + '/' + \
-                         graph_type + '_graph/' + \
-                         features_input_file[:-3] + '/' + \
-                         aff_norm_method + '_normalization/' + \
-                         graph_mode + '_graph/' + \
-                         'results/'
-
-                if not os.path.exists(outdir):
-                    os.makedirs(outdir)
-
-
-                fig_title = 'Normalized GraphCut Result '
-                fig_label = (vals['recall'], vals['precision'], (t1 - t0))
-                img_name = '_ncut_result'
-                show_and_save_result(img, regions_ncut, fig_title, fig_label, img_name, fontsize, save_fig, outdir, file_name)
-
-                # f = open(outdir + '00-params_setup.txt', 'wb')
-                # f.write('NORMALIZED GRAPHCUT <PARAMETER SETUP> <%s> \n \n' % datetime.datetime.now())
-                # f.write('Superpixels function parameters: \n')
-                # f.write(' n_regions = %i ~ %i \n convert2lab = %r \n\n' % (n_regions, len(np.unique(regions)), convert2lab))
-                # f.write('Graph function parameters: \n')
-                # if graph_type == 'knn':
-                #     f.write(' graph_type = %s \n kneighbors = %i \n\n' % (graph_type, kneighbors))
-                # elif graph_type == 'eps':
-                #     f.write(' graph_type = %s \n radius = %i \n\n' % (graph_type, radius))
-                # else:
-                #     f.write(' graph_type = %s \n\n' % graph_type)
-                # f.write('Color quantification parameters: \n')
-                # f.write(' method = %s \n n_bins = %i \n\n' % (method, n_bins))
-                # f.write('Particular parameters: \n')
-                # f.write(' sigma_method = %s ' % sigma_method)
-                # f.close()
-                plt.close('all')
+            outdir = '../outdir/' + \
+                     'slic_level_segmentation/' + \
+                     num_imgs_dir + \
+                     'normalized_graphcut/' + \
+                     method + '/' + \
+                     graph_type + '_graph/' + \
+                     features_input_file[:-3] + '/' + \
+                     aff_norm_method + '_normalization/' + \
+                     graph_mode + '_graph/' + \
+                     'results/'
 
             metrics_values = np.array(metrics_values)
             recall = metrics_values[:, 0]

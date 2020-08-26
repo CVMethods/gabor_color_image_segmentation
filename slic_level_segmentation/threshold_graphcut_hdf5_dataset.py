@@ -9,6 +9,154 @@ from source.graph_operations import *
 from source.plot_save_figures import *
 from source.color_seg_methods import *
 
+
+def get_thr_graphcut_metrics(im_file, img, g_energies):
+    print('##############################', im_file, '##############################')
+
+    ''' Computing superpixel regions '''
+    regions_slic = slic_superpixel(img, n_regions, convert2lab)
+
+    ''' Computing Graph '''
+    graph_raw = get_graph(img, regions_slic, graph_type, kneighbors, radius)
+
+    ''' Updating edges weights with optimal transport '''
+    g_energies_sum = np.sum(g_energies, axis=-1)
+    graph_weighted = update_edges_weight(regions_slic, graph_raw, g_energies_sum, ground_distance, method)
+
+    if graph_mode == 'complete':
+        weights = nx.get_edge_attributes(graph_weighted, 'weight').values()
+    elif graph_mode == 'mst':
+        # Compute Minimum Spanning Tree
+        graph_mst = get_mst(graph_weighted)
+        weights = nx.get_edge_attributes(graph_mst, 'weight').values()
+        graph_weighted = graph_mst
+
+    ''' Performing Graph cut on weighted RAG '''
+    thresh, params = fit_distribution_law(list(weights), cut_level, law_type)
+
+    t0 = time.time()
+    graph_aftercut = graph_weighted.copy()
+    graph.cut_threshold(regions_slic, graph_aftercut, thresh, in_place=True)
+    t1 = time.time()
+    print(' Computing time: %.2fs' % (t1 - t0))
+
+    regions_aftercut = graph2regions(graph_aftercut, regions_slic)
+
+    ''' Evaluation of segmentation'''
+    groundtruth_segments = np.array(get_segment_from_filename(im_file))
+
+    if len(np.unique(regions_aftercut)) == 1:
+        # metrics_values.append((0., 0.))
+        metrics_vals = (0., 0.)
+    else:
+        m = metrics(None, regions_aftercut, groundtruth_segments)
+        m.set_metrics()
+        # m.display_metrics()
+        vals = m.get_metrics()
+        # metrics_values.append((vals['recall'], vals['precision']))
+        metrics_vals = (vals['recall'], vals['precision'])
+
+    ##############################################################################
+    '''Visualization Section: show and/or save images'''
+    # General Params
+    save_fig = True
+    fontsize = 10
+    file_name = im_file
+
+    outdir = '../outdir/' + \
+             'slic_level_segmentation/' + \
+             num_imgs_dir + \
+             'threshold_graphcut/' + \
+             method + '/' + \
+             graph_type + '_graph/' + \
+             features_input_file[:-3] + '/' + \
+             law_type + '_distribution/' + \
+             graph_mode + '_graph/' + \
+             'computation_support/'
+
+    if not os.path.exists(outdir):
+        os.makedirs(outdir)
+
+    # Show Input image
+    fig_title = 'Input Image'
+    show_and_save_img(img, fig_title, fontsize, save_fig, outdir, file_name)
+
+    # Show SLIC result
+    fig_title = 'Superpixel Regions'
+    img_name = '_slic'
+    show_and_save_regions(img, regions_slic, fig_title, img_name, fontsize, save_fig, outdir, file_name)
+
+    # Show Graph with uniform weight
+    fig_title = 'Graph (' + graph_type + ')'
+    img_name = '_raw_' + graph_type
+    colbar_lim = (0, 1)
+    show_and_save_imgraph(img, regions_slic, graph_raw, fig_title, img_name, fontsize, save_fig, outdir, file_name,
+                          colbar_lim)
+
+    # Show Graph with updated weights
+    fig_title = graph_mode + ' Weighted Graph (' + graph_type + ')'
+    img_name = '_weighted_' + graph_type
+    colbar_lim = (min(weights), max(weights))
+    show_and_save_imgraph(img, regions_slic, graph_weighted, fig_title, img_name, fontsize, save_fig, outdir, file_name,
+                          colbar_lim)
+
+    # # Show one SLIC region and its neighbors
+    # region = 109
+    # show_and_save_some_regions(img, regions, region, rag, save_fig, outdir, file_name)
+
+    # # Edges weight distribution
+    # fig_title = 'Edges Weight Distribution'
+    # img_name = '_weight_dist'
+    # show_and_save_dist(weights, thresh, params, fig_title, img_name, fontsize, save_fig, outdir, file_name)
+
+    # RAG after cut
+    fig_title = 'RAG after cut'
+    img_name = '_thr_graph_aftercut'
+    colbar_lim = (min(weights), max(weights))
+    show_and_save_imgraph(img, regions_slic, graph_aftercut, fig_title, img_name, fontsize, save_fig,
+                          outdir, file_name, colbar_lim)
+
+    ##############################################################################
+    # Segmentation results visualization
+    outdir = '../outdir/' + \
+             'slic_level_segmentation/' + \
+             num_imgs_dir + \
+             'threshold_graphcut/' + \
+             method + '/' + \
+             graph_type + '_graph/' + \
+             features_input_file[:-3] + '/' + \
+             law_type + '_distribution/' + \
+             graph_mode + '_graph/' + \
+             'results/'
+
+    if not os.path.exists(outdir):
+        os.makedirs(outdir)
+
+    fig_title = 'Segmentation Result '
+    fig_label = (vals['recall'], vals['precision'], (t1 - t0))
+    img_name = '_graphcut_result'
+    show_and_save_result(img, regions_aftercut, fig_title, fig_label, img_name, fontsize, save_fig, outdir, file_name)
+
+    # f = open(outdir + '00-params_setup.txt', 'wb')
+    # f.write('THRESHOLD GRAPHCUT <PARAMETER SETUP> <%s> \n \n' % datetime.datetime.now())
+    # f.write('Superpixels function parameters: \n')
+    # f.write(' n_regions = %i ~ %i \n convert2lab = %r \n\n' % (n_regions, len(np.unique(regions)), convert2lab))
+    # f.write('Graph function parameters: \n')
+    # if graph_type == 'knn':
+    #     f.write(' graph_type = %s \n kneighbors = %i \n\n' % (graph_type, kneighbors))
+    # elif graph_type == 'eps':
+    #     f.write(' graph_type = %s \n radius = %i \n\n' % (graph_type, radius))
+    # else:
+    #     f.write(' graph_type = %s \n\n' % graph_type)
+    # f.write('Color quantification parameters: \n')
+    # f.write(' method = %s \n n_bins = %i \n\n' % (method, n_bins))
+    # f.write('Particular parameters: \n')
+    # f.write(' cut_level = %i ' % (cut_level * 100))
+    plt.close('all')
+
+    return metrics_vals
+
+
 if __name__ == '__main__':
     num_cores = -1
 
@@ -86,148 +234,19 @@ if __name__ == '__main__':
             law_type = 'log'  # Choose 'log' for lognorm distribution or 'gamma' for gamma distribution
             cut_level = 0.9  # set threshold at the 90% quantile level
 
-            metrics_values = []
-            for im_file, img, g_energies in zip(img_ids, images, gabor_features_norm):
-                time_total = time.time()
+            metrics_values = Parallel(n_jobs=num_cores)(
+                delayed(get_thr_graphcut_metrics)(im_file, img, g_energies) for im_file, img, g_energies in zip(img_ids, images, gabor_features_norm))
 
-                print('##############################', im_file, '##############################')
-
-                ''' Computing superpixel regions '''
-                regions_slic = slic_superpixel(img, n_regions, convert2lab)
-
-                ''' Computing Graph '''
-                graph_raw = get_graph(img, regions_slic, graph_type, kneighbors, radius)
-
-                ''' Updating edges weights with optimal transport '''
-                g_energies_sum = np.sum(g_energies, axis=-1)
-                graph_weighted = update_edges_weight(regions_slic, graph_raw, g_energies_sum, ground_distance, method)
-
-                if graph_mode == 'complete':
-                    weights = nx.get_edge_attributes(graph_weighted, 'weight').values()
-                elif graph_mode == 'mst':
-                    # Compute Minimum Spanning Tree
-                    graph_mst = get_mst(graph_weighted)
-                    weights = nx.get_edge_attributes(graph_mst, 'weight').values()
-                    graph_weighted = graph_mst
-
-                ''' Performing Graph cut on weighted RAG '''
-                thresh, params = fit_distribution_law(list(weights), cut_level, law_type)
-
-                t0 = time.time()
-                graph_aftercut = graph_weighted.copy()
-                graph.cut_threshold(regions_slic, graph_aftercut, thresh, in_place=True)
-                t1 = time.time()
-                print(' Computing time: %.2fs' % (t1 - t0))
-
-                regions_aftercut = graph2regions(graph_aftercut, regions_slic)
-
-                ''' Evaluation of segmentation'''
-                groundtruth_segments = np.array(get_segment_from_filename(im_file))
-
-                if len(np.unique(regions_aftercut)) == 1:
-                    metrics_values.append((0., 0.))
-                else:
-                    m = metrics(None, regions_aftercut, groundtruth_segments)
-                    m.set_metrics()
-                    # m.display_metrics()
-                    vals = m.get_metrics()
-                    metrics_values.append((vals['recall'], vals['precision']))
-
-                ##############################################################################
-                '''Visualization Section: show and/or save images'''
-                # General Params
-                save_fig = True
-                fontsize = 10
-                file_name = im_file
-
-                outdir = '../outdir/' + \
-                         'slic_level_segmentation/' + \
-                         num_imgs_dir + \
-                         'threshold_graphcut/' + \
-                         method + '/' + \
-                         graph_type + '_graph/' + \
-                         features_input_file[:-3] + '/' + \
-                         law_type + '_distribution/' + \
-                         graph_mode + '_graph/' + \
-                         'computation_support/'
-
-                if not os.path.exists(outdir):
-                    os.makedirs(outdir)
-
-                # Show Input image
-                fig_title = 'Input Image'
-                show_and_save_img(img, fig_title, fontsize, save_fig, outdir, file_name)
-
-                # Show SLIC result
-                fig_title = 'Superpixel Regions'
-                img_name = '_slic'
-                show_and_save_regions(img, regions_slic, fig_title, img_name, fontsize, save_fig, outdir, file_name)
-
-                # Show Graph with uniform weight
-                fig_title = 'Graph (' + graph_type + ')'
-                img_name = '_raw_' + graph_type
-                colbar_lim = (0, 1)
-                show_and_save_imgraph(img, regions_slic, graph_raw, fig_title, img_name, fontsize, save_fig, outdir, file_name, colbar_lim)
-
-                # Show Graph with updated weights
-                fig_title = graph_mode + ' Weighted Graph (' + graph_type + ')'
-                img_name = '_weighted_' + graph_type
-                colbar_lim = (min(weights), max(weights))
-                show_and_save_imgraph(img, regions_slic, graph_weighted, fig_title, img_name, fontsize, save_fig, outdir, file_name, colbar_lim)
-
-                # # Show one SLIC region and its neighbors
-                # region = 109
-                # show_and_save_some_regions(img, regions, region, rag, save_fig, outdir, file_name)
-
-                # # Edges weight distribution
-                # fig_title = 'Edges Weight Distribution'
-                # img_name = '_weight_dist'
-                # show_and_save_dist(weights, thresh, params, fig_title, img_name, fontsize, save_fig, outdir, file_name)
-
-                # RAG after cut
-                fig_title = 'RAG after cut'
-                img_name = '_thr_graph_aftercut'
-                colbar_lim = (min(weights), max(weights))
-                show_and_save_imgraph(img, regions_slic, graph_aftercut, fig_title, img_name, fontsize, save_fig,
-                                      outdir, file_name, colbar_lim)
-
-                ##############################################################################
-                # Segmentation results visualization
-                outdir = '../outdir/' + \
-                         'slic_level_segmentation/' + \
-                         num_imgs_dir + \
-                         'threshold_graphcut/' + \
-                         method + '/' + \
-                         graph_type + '_graph/' + \
-                         features_input_file[:-3] + '/' + \
-                         law_type + '_distribution/' + \
-                         graph_mode + '_graph/' + \
-                         'results/'
-
-                if not os.path.exists(outdir):
-                    os.makedirs(outdir)
-
-                fig_title = 'Segmentation Result '
-                fig_label = (vals['recall'], vals['precision'], (t1 - t0))
-                img_name = '_graphcut_result'
-                show_and_save_result(img, regions_aftercut, fig_title, fig_label, img_name, fontsize, save_fig, outdir, file_name)
-
-                # f = open(outdir + '00-params_setup.txt', 'wb')
-                # f.write('THRESHOLD GRAPHCUT <PARAMETER SETUP> <%s> \n \n' % datetime.datetime.now())
-                # f.write('Superpixels function parameters: \n')
-                # f.write(' n_regions = %i ~ %i \n convert2lab = %r \n\n' % (n_regions, len(np.unique(regions)), convert2lab))
-                # f.write('Graph function parameters: \n')
-                # if graph_type == 'knn':
-                #     f.write(' graph_type = %s \n kneighbors = %i \n\n' % (graph_type, kneighbors))
-                # elif graph_type == 'eps':
-                #     f.write(' graph_type = %s \n radius = %i \n\n' % (graph_type, radius))
-                # else:
-                #     f.write(' graph_type = %s \n\n' % graph_type)
-                # f.write('Color quantification parameters: \n')
-                # f.write(' method = %s \n n_bins = %i \n\n' % (method, n_bins))
-                # f.write('Particular parameters: \n')
-                # f.write(' cut_level = %i ' % (cut_level * 100))
-                plt.close('all')
+            outdir = '../outdir/' + \
+                     'slic_level_segmentation/' + \
+                     num_imgs_dir + \
+                     'threshold_graphcut/' + \
+                     method + '/' + \
+                     graph_type + '_graph/' + \
+                     features_input_file[:-3] + '/' + \
+                     law_type + '_distribution/' + \
+                     graph_mode + '_graph/' + \
+                     'results/'
 
             metrics_values = np.array(metrics_values)
             recall = metrics_values[:, 0]
