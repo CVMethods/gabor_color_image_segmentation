@@ -77,7 +77,7 @@ def update_groundtruth_edges_weight(regions, rag, segments):
 
     rag_weighted = rag.copy()
     for ii, e in enumerate(list(rag.edges)):
-        rag_weighted[e[0]][e[1]]['weight'] = groundtruth_dist[ii]
+        rag_weighted[e[0]][e[1]]['weight'] += groundtruth_dist[ii]
 
     return rag_weighted
 
@@ -161,7 +161,7 @@ def set_node_edge_attr(graph, img, regions):
         graph.nodes[n]['mean color'] = (graph.nodes[n]['total color'] / graph.nodes[n]['pixel count'])
         graph.nodes[n]['centroid'] = (region_props[n].centroid)
 
-    nx.set_edge_attributes(graph, 1, 'weight')
+    nx.set_edge_attributes(graph, 0, 'weight')
     # nx.set_edge_attributes(rag, 1, 'similarity')
 
     return graph

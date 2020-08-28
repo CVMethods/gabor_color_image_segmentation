@@ -158,3 +158,13 @@ def get_num_segments(segments):
     n_labels = np.array(n_labels)
 
     return np.array((max(n_labels), min(n_labels), int(n_labels.mean()), int(hmean(n_labels))))
+
+
+def get_gt_min_nsegments(ground_truth_segments):
+    n_labels = []
+    for truth in ground_truth_segments:
+        n_labels.append(len(np.unique(truth)))
+    min_nseg = min(n_labels)
+    pos_min_nseg = n_labels.index(min_nseg)
+
+    return ground_truth_segments[pos_min_nseg]

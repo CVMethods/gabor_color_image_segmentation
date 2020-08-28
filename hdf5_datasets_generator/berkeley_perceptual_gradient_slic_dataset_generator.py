@@ -102,18 +102,6 @@ class ImageIndexer(object):
         self.gradient_shapes_buffer = []
 
 
-def get_gt_min_nsegments(img_id):
-    ground_truth_segments = np.array(get_segment_from_filename(img_id))
-    n_labels = []
-
-    for truth in ground_truth_segments:
-        n_labels.append(len(np.unique(truth)))
-    min_nseg = min(n_labels)
-    pos_min_nseg = n_labels.index(min_nseg)
-
-    return ground_truth_segments[pos_min_nseg]
-
-
 def perceptual_gradient_computation(im_file, img, g_energies):
     print('##############################', im_file, '##############################')
 
@@ -137,14 +125,18 @@ def perceptual_gradient_computation(im_file, img, g_energies):
     weights_ci = np.fromiter(nx.get_edge_attributes(graph_weighted_ci, 'weight').values(), dtype=np.float32)
 
     ''' Computing target gradient from the ground truth'''
-    min_ground_truth = get_gt_min_nsegments(im_file)
-    graph_weighted_gt = update_groundtruth_edges_weight(regions_slic, graph_gt, min_ground_truth)
+    ground_truth_segments = np.array(get_segment_from_filename(im_file))
+    for truth in ground_truth_segments:
+        graph_gt = update_groundtruth_edges_weight(regions_slic, graph_gt, truth)
+        graph_weighted_gt = graph_gt.copy()
 
     weights_gt = np.fromiter(nx.get_edge_attributes(graph_weighted_gt, 'weight').values(), dtype=np.float32)
+    weights_gt = (weights_gt - min(weights_gt)) / (max(weights_gt) - min(weights_gt))
 
-    # perceptual_gradients.append(np.column_stack((weights_lum, weights_cr, weights_ci, weights_gt)))
+    for i_edge, e in enumerate(list(graph_weighted_gt.edges)):
+        graph_weighted_gt[e[0]][e[1]]['weight'] = weights_gt[i_edge]
+
     stacked_gradients = np.column_stack((weights_lum, weights_cr, weights_ci, weights_gt))
-
 
     ##############################################################################
     '''Visualization Section: show and/or save images'''
@@ -304,7 +296,7 @@ if __name__ == '__main__':
             output_file_name[1] = 'PerceptualGradients'
             output_file = '_'.join(output_file_name)
 
-            perceptual_gradients = Parallel(n_jobs=num_cores)(delayed(perceptual_gradient_computation)(im_file, img, g_energies) for im_file, img, g_energies in zip(img_ids, images, gabor_features_norm))
+            perceptual_gradients = Parallel(n_jobs=1)(delayed(perceptual_gradient_computation)(im_file, img, g_energies) for im_file, img, g_energies in zip(img_ids, images, gabor_features_norm))
 
             with ImageIndexer(hdf5_outdir / output_file,
                               buffer_size=num_imgs,
