@@ -102,14 +102,9 @@ class ImageIndexer(object):
         self.gradient_shapes_buffer = []
 
 
-def perceptual_gradient_computation(im_file, img, g_energies):
+def perceptual_gradient_computation(im_file, img, regions_slic, graph_raw, g_energies, outdir):
     print('##############################', im_file, '##############################')
 
-    ''' Computing superpixel regions '''
-    regions_slic = slic_superpixel(img, n_regions, convert2lab)
-
-    ''' Computing Graphs '''
-    graph_raw = get_graph(img, regions_slic, graph_type, kneighbors, radius)
     graph_lum = graph_raw.copy()
     graph_cr = graph_raw.copy()
     graph_ci = graph_raw.copy()
@@ -145,41 +140,6 @@ def perceptual_gradient_computation(im_file, img, g_energies):
     fontsize = 10
     file_name = im_file
 
-    outdir = '../outdir/perceptual_gradient/' + \
-             num_imgs_dir + 'slic_level/' + \
-             output_file[:-3] + '/' +\
-             str(n_regions) + '_regions/' + \
-             '/computation_support/'
-
-    if not os.path.exists(outdir):
-        os.makedirs(outdir)
-
-    # Show Input image
-    fig_title = 'Input Image'
-    show_and_save_img(img, fig_title, fontsize, save_fig, outdir, file_name)
-
-    # Show SLIC result
-    fig_title = 'Superpixel Regions'
-    img_name = '_slic'
-    show_and_save_regions(img, regions_slic, fig_title, img_name, fontsize, save_fig, outdir, file_name)
-
-    # Show Graph with uniform weight
-    fig_title = 'Graph (' + graph_type + ')'
-    img_name = '_raw_' + graph_type
-    colbar_lim = (0, 1)
-    show_and_save_imgraph(img, regions_slic, graph_raw, fig_title, img_name, fontsize, save_fig, outdir, file_name,
-                          colbar_lim)
-
-    outdir = '../outdir/perceptual_gradient/' + \
-             num_imgs_dir + \
-             'slic_level/' \
-             + output_file[:-3] + '/' +\
-             str(n_regions) + '_regions/' + \
-             'gradients/'
-
-    if not os.path.exists(outdir):
-        os.makedirs(outdir)
-
     # Show Graph with updated weights
     fig_title = 'Lum Weighted Graph (' + graph_type + ')'
     img_name = '_weighted_lum_' + graph_type
@@ -205,11 +165,7 @@ def perceptual_gradient_computation(im_file, img, g_energies):
     show_and_save_imgraph(img, regions_slic, graph_weighted_gt, fig_title, img_name, fontsize, save_fig,
                           outdir, file_name, colbar_lim)
 
-    plt.cla()
-    plt.clf()
-    plt.close('all')
-
-    return (stacked_gradients, regions_slic)
+    return stacked_gradients, regions_slic
 
 
 if __name__ == '__main__':
@@ -257,14 +213,56 @@ if __name__ == '__main__':
     t1 = time.time()
     print('Reading hdf5 image data set time: %.2fs' % (t1 - t0))
 
+    ''' Computing superpixel regions for all images'''
     # Superpixels function parameters
     n_regions = 500 * 4
     convert2lab = True
 
+    superpixels = Parallel(n_jobs=num_cores)(
+        delayed(slic_superpixel)(img, n_regions, convert2lab) for img in images)
+
+    ''' Computing Graphs for all images'''
     # Graph function parameters
     graph_type = 'knn'  # Choose: 'complete', 'knn', 'rag'
     kneighbors = 8
     radius = 10
+
+    all_raw_graphs = Parallel(n_jobs=num_cores)(
+        delayed(get_graph)(img, regions_slic, graph_type, kneighbors, radius) for img, regions_slic in zip(images, superpixels))
+
+    ##############################################################################
+    '''Visualization Section: show and/or save images'''
+    # General Params
+    save_fig = True
+    fontsize = 10
+
+    outdir = '../outdir/perceptual_gradient/' + \
+             num_imgs_dir + 'slic_level/' + \
+             '/computation_support/'
+
+    if not os.path.exists(outdir):
+        os.makedirs(outdir)
+
+    # Show Input images
+    fig_title = 'Input Image'
+    Parallel(n_jobs=num_cores)(
+            delayed(show_and_save_img)(img, fig_title, fontsize, save_fig, outdir, file_name)
+            for img, file_name in zip(images, img_ids))
+
+    # Show SLIC results
+    fig_title = 'Superpixel Regions'
+    img_name = '_slic'
+    Parallel(n_jobs=num_cores)(
+        delayed(show_and_save_regions)(img, regions_slic, fig_title, img_name, fontsize, save_fig, outdir, file_name)
+        for img, regions_slic, file_name in zip(images, superpixels, img_ids))
+
+    # Show Graphs with uniform weight
+    fig_title = 'Graph (' + graph_type + ')'
+    img_name = '_raw_' + graph_type
+    colbar_lim = (0, 1)
+    Parallel(n_jobs=num_cores)(
+        delayed(show_and_save_imgraph)(img, regions_slic, graph_raw, fig_title, img_name, fontsize, save_fig, outdir, file_name,
+                              colbar_lim) for img, regions_slic, graph_raw, file_name in zip(images, superpixels, all_raw_graphs, img_ids))
 
     # Graph distance parameters
     method = 'OT'  # Choose: 'OT' for Earth Movers Distance or 'KL' for Kullback-Leiber divergence
@@ -296,7 +294,18 @@ if __name__ == '__main__':
             output_file_name[1] = 'PerceptualGradients'
             output_file = '_'.join(output_file_name)
 
-            perceptual_gradients = Parallel(n_jobs=1)(delayed(perceptual_gradient_computation)(im_file, img, g_energies) for im_file, img, g_energies in zip(img_ids, images, gabor_features_norm))
+            outdir = '../outdir/perceptual_gradient/' + \
+                     num_imgs_dir + \
+                     'slic_level/' \
+                     + output_file[:-3] + '/' + \
+                     str(n_regions) + '_regions/'
+
+            if not os.path.exists(outdir):
+                os.makedirs(outdir)
+
+            perceptual_gradients = Parallel(n_jobs=num_cores)(delayed(
+                perceptual_gradient_computation)(im_file, img, regions_slic, graph_raw, g_energies, outdir) for im_file, img, regions_slic, graph_raw, g_energies in
+                zip(img_ids, images, superpixels, all_raw_graphs, gabor_features_norm))
 
             with ImageIndexer(hdf5_outdir / output_file,
                               buffer_size=num_imgs,
