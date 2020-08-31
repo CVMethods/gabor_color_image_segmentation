@@ -80,22 +80,22 @@ if __name__ == '__main__':
             t1 = time.time()
             print('Reading hdf5 features data set time: %.2fs' % (t1 - t0))
 
-            all_imgs_data = Parallel(n_jobs=num_cores)(
+            all_imgs_gradients = Parallel(n_jobs=num_cores)(
                 delayed(np.reshape)(gradients, (shape[0], shape[1])) for gradients, shape in zip(gradient_vectors, gradient_shapes))
 
             training_dataset = []
-            for ii in range(len(all_imgs_data)):
+            for ii in range(len(all_imgs_gradients)):
                 if img_subdirs[ii] == 'train':  # Need to change the name of directory to add the gradients to training dataset
-                    training_dataset.extend(all_imgs_data[ii])
+                    training_dataset.extend(all_imgs_gradients[ii])
 
             training_dataset = np.array(training_dataset)
             X_train = training_dataset[:, :-1]
             y_train = training_dataset[:, -1]
 
             regressors = [('SGDR', SGDRegressor(loss='huber', max_iter=5000, tol=1e-3)),
-                          ('MLPR', MLPRegressor(solver='adam', activation='tanh', max_iter=5000)),
+                          ('MLPR', MLPRegressor(solver='adam', activation='relu', max_iter=5000)),
                           ('LinReg', LinearRegression(n_jobs=-1)),
-                          ('Rigge', Ridge(alpha=2.0))]
+                          ('Ridge', Ridge(alpha=2.0))]
 
             output_file_name = gradients_input_file.split('_')
             output_file_name[1] = 'Models'
