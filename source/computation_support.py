@@ -9,6 +9,7 @@ import skimage.future.graph as grph
 import matplotlib.pyplot as plt
 import pdb
 
+from skimage.morphology import erosion, disk, dilation, closing, opening, diamond
 from pyemd import emd, emd_samples
 from joblib import Parallel, delayed
 from skimage import io

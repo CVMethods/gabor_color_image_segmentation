@@ -179,3 +179,13 @@ def graph_complete_networkx(regions):
     print('Number of edges:', complete_graph.number_of_edges())
 
     return complete_graph
+
+
+def graph2gradient(img, rag, weights, regions):
+    img_grad = np.zeros((img.shape[0], img.shape[1]))
+    for i_edge, e in enumerate(list(rag.edges)):
+        rag[e[0]][e[1]]['weight'] = weights[i_edge]
+        cnt = np.logical_and(dilation(regions == e[0], disk(1)), dilation(regions == e[1], disk(1)))
+        img_grad[cnt] = np.maximum(img_grad[cnt], rag[e[0]][e[1]]['weight'])
+
+    return img_grad
