@@ -25,12 +25,10 @@ class ImageIndexer(object):
         self.num_of_images = num_of_images
         self.gradient_arrays_db = None
         self.gradient_shapes_db = None
-        self.superpixels_db = None
         self.idxs = {"index": 0}
 
         self.gradient_arrays_buffer = []
         self.gradient_shapes_buffer = []
-        self.superpixels_buffer = []
 
     def __enter__(self):
         print("indexing {} images".format(self.num_of_images))
@@ -44,7 +42,6 @@ class ImageIndexer(object):
 
             self._write_buffer(self.gradient_arrays_db, self.gradient_arrays_buffer)
             self._write_buffer(self.gradient_shapes_db, self.gradient_shapes_buffer)
-            self._write_buffer(self.superpixels_db, self.superpixels_buffer)
 
         print("closing h5 db")
         self.db.close()
@@ -65,17 +62,9 @@ class ImageIndexer(object):
             dtype=np.int64
         )
 
-        self.superpixels_db = self.db.create_dataset(
-            "superpixels",
-            shape=(self.num_of_images,),
-            maxshape=(None,),
-            dtype=h5py.special_dtype(vlen=np.dtype('int64'))
-        )
-
     def add(self, feature_array):
-        self.gradient_arrays_buffer.append(feature_array[0].flatten())
-        self.gradient_shapes_buffer.append(feature_array[0].shape)
-        self.superpixels_buffer.append(feature_array[1].flatten())
+        self.gradient_arrays_buffer.append(feature_array.flatten())
+        self.gradient_shapes_buffer.append(feature_array.shape)
 
         if self.gradient_arrays_db is None:
             self.create_datasets()
@@ -83,7 +72,6 @@ class ImageIndexer(object):
         if len(self.gradient_arrays_buffer) >= self.buffer_size:
             self._write_buffer(self.gradient_arrays_db, self.gradient_arrays_buffer)
             self._write_buffer(self.gradient_shapes_db, self.gradient_shapes_buffer)
-            self._write_buffer(self.superpixels_db, self.superpixels_buffer)
 
             # increment index
             self.idxs['index'] += len(self.gradient_arrays_buffer)
@@ -165,7 +153,7 @@ def perceptual_gradient_computation(im_file, img, regions_slic, graph_raw, g_ene
     show_and_save_imgraph(img, regions_slic, graph_weighted_gt, fig_title, img_name, fontsize, save_fig,
                           outdir, file_name, colbar_lim)
 
-    return stacked_gradients, regions_slic
+    return stacked_gradients
 
 
 if __name__ == '__main__':
@@ -178,6 +166,7 @@ if __name__ == '__main__':
     if num_imgs is 500:
         # Path to whole Berkeley image data set
         hdf5_indir_im = hdf5_dir / 'complete' / 'images'
+        hdf5_indir_spix = hdf5_dir / 'complete' / 'superpixels'
         hdf5_indir_feat = hdf5_dir / 'complete' / 'features'
         hdf5_outdir = hdf5_dir / 'complete' / 'gradients'
         num_imgs_dir = 'complete/'
@@ -185,6 +174,7 @@ if __name__ == '__main__':
     elif num_imgs is 7:
         # Path to my 7 favourite images from the Berkeley data set
         hdf5_indir_im = hdf5_dir / '7images/' / 'images'
+        hdf5_indir_spix = hdf5_dir / '7images' / 'superpixels'
         hdf5_indir_feat = hdf5_dir / '7images/' / 'features'
         hdf5_outdir = hdf5_dir / '7images' / 'gradients'
         num_imgs_dir = '7images/'
@@ -192,6 +182,7 @@ if __name__ == '__main__':
     elif num_imgs is 25:
         # Path to 25 images from the Berkeley data set
         hdf5_indir_im = hdf5_dir / '25images' / 'images'
+        hdf5_indir_spix = hdf5_dir / '25images' / 'superpixels'
         hdf5_indir_feat = hdf5_dir / '25images' / 'features'
         hdf5_outdir = hdf5_dir / '25images' / 'gradients'
         num_imgs_dir = '25images/'
@@ -207,19 +198,20 @@ if __name__ == '__main__':
     img_ids = np.array(images_file["/image_ids"])
     img_subdirs = np.array(images_file["/image_subdirs"])
 
+    superpixels_file = h5py.File(hdf5_indir_spix / "Berkeley_superpixels.h5", "r+")
+    superpixels_vectors = np.array(superpixels_file["/superpixels"])
+
     images = np.array(Parallel(n_jobs=num_cores)(
         delayed(np.reshape)(img, (shape[0], shape[1], shape[2])) for img, shape in zip(image_vectors, img_shapes)))
 
+    superpixels = np.array(Parallel(n_jobs=num_cores)(
+        delayed(np.reshape)(img_spix, (shape[0], shape[1])) for img_spix, shape in
+        zip(superpixels_vectors, img_shapes)))
+
+    n_regions = superpixels_file.attrs['num_slic_regions']
+
     t1 = time.time()
     print('Reading hdf5 image data set time: %.2fs' % (t1 - t0))
-
-    ''' Computing superpixel regions for all images'''
-    # Superpixels function parameters
-    n_regions = 500 * 4
-    convert2lab = True
-
-    superpixels = Parallel(n_jobs=num_cores)(
-        delayed(slic_superpixel)(img, n_regions, convert2lab) for img in images)
 
     ''' Computing Graphs for all images'''
     # Graph function parameters
