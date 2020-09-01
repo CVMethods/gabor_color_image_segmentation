@@ -18,7 +18,7 @@ def get_normalized_cuts_metrics(im_file, img, regions_slic, graph_raw, perceptua
     if gradients_dir == 'gradients':
         perceptual_gradients = np.sum(perceptual_gradients[:, :-1], axis=-1)
 
-    perceptual_gradients = (perceptual_gradients - min(perceptual_gradients)) / (max(perceptual_gradients) - min(perceptual_gradients))
+    #perceptual_gradients = (perceptual_gradients - min(perceptual_gradients)) / (max(perceptual_gradients) - min(perceptual_gradients))
 
     for i_edge, e in enumerate(list(graph_raw.edges)):
         graph_weighted[e[0]][e[1]]['weight'] = perceptual_gradients[i_edge]
@@ -82,7 +82,7 @@ def get_normalized_cuts_metrics(im_file, img, regions_slic, graph_raw, perceptua
         os.makedirs(output_dir)
 
     fig_title = 'Normalized GraphCut Result '
-    fig_label = (vals['recall'], vals['precision'], (t1 - t0))
+    fig_label = (metrics_vals[0], metrics_vals[1], (t1 - t0))
     img_name = '_ncut_result'
     show_and_save_result(img, regions_ncut, fig_title, fig_label, img_name, fontsize, save_fig, output_dir, file_name)
 
@@ -93,7 +93,7 @@ if __name__ == '__main__':
     num_cores = -1
 
     num_imgs = 7
-    gradients_dir = 'gradients'
+    gradients_dir = 'predicted_gradients'
     bsd_subset = 'test'
 
     hdf5_dir = Path('../../data/hdf5_datasets/')

@@ -18,7 +18,7 @@ def get_spectral_clustering_metrics(im_file, img, regions_slic, graph_raw, perce
     if gradients_dir == 'gradients':
         perceptual_gradients = np.sum(perceptual_gradients[:, :-1], axis=-1)
 
-    perceptual_gradients = (perceptual_gradients - min(perceptual_gradients)) / (max(perceptual_gradients) - min(perceptual_gradients))
+    # perceptual_gradients = (perceptual_gradients - min(perceptual_gradients)) / (max(perceptual_gradients) - min(perceptual_gradients))
 
     for i_edge, e in enumerate(list(graph_raw.edges)):
         graph_weighted[e[0]][e[1]]['weight'] = perceptual_gradients[i_edge]
@@ -96,7 +96,7 @@ def get_spectral_clustering_metrics(im_file, img, regions_slic, graph_raw, perce
         os.makedirs(output_dir)
 
     fig_title = 'Spectral Clustering Result k=%d' % k
-    fig_label = (vals['recall'], vals['precision'], (t1 - t0))
+    fig_label = (metrics_vals[0], metrics_vals[1], (t1 - t0))
     img_name = '_spec_result'
     show_and_save_result(img, regions_spec, fig_title, fig_label, img_name, fontsize, save_fig, output_dir, file_name)
 

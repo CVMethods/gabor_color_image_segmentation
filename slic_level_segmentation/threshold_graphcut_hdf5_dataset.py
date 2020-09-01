@@ -102,7 +102,7 @@ def get_thr_graphcut_metrics(im_file, img, regions_slic, graph_raw, perceptual_g
         os.makedirs(outdir)
 
     fig_title = 'Segmentation Result '
-    fig_label = (vals['recall'], vals['precision'], (t1 - t0))
+    fig_label = (metrics_vals[0], metrics_vals[1], (t1 - t0))
     img_name = '_graphcut_result'
     show_and_save_result(img, regions_aftercut, fig_title, fig_label, img_name, fontsize, save_fig, output_dir, file_name)
 
