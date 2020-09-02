@@ -205,6 +205,10 @@ if __name__ == '__main__':
                 gradient_vectors = np.array(gradients_file["/perceptual_gradients"])
                 gradient_shapes = np.array(gradients_file["/gradient_shapes"])
 
+                if bsd_subset == 'test':
+                    gradient_vectors = gradient_vectors[test_indices]
+                    gradient_shapes = gradient_shapes[test_indices]
+
                 imgs_gradients = Parallel(n_jobs=num_cores)(
                 delayed(np.reshape)(gradients, (shape[0], shape[1])) for gradients, shape in
                 zip(gradient_vectors, gradient_shapes))
