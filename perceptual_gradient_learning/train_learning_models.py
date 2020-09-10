@@ -14,13 +14,13 @@ from sklearn.neighbors import kneighbors_graph
 from sklearn.svm import LinearSVC, LinearSVR, SVR, SVC
 from sklearn.tree import DecisionTreeClassifier, DecisionTreeRegressor
 from sklearn.neighbors import KNeighborsClassifier
-from sklearn.linear_model import SGDClassifier, SGDRegressor
-from sklearn.linear_model import Lasso, LinearRegression, Ridge, ElasticNet
+from sklearn.linear_model import Lasso, LinearRegression, Ridge, ElasticNet, LogisticRegression, SGDClassifier, SGDRegressor
 from sklearn.discriminant_analysis import LinearDiscriminantAnalysis, QuadraticDiscriminantAnalysis
 from sklearn.neural_network import MLPClassifier, MLPRegressor
-from sklearn.pipeline import make_pipeline
+from sklearn.pipeline import make_pipeline, Pipeline
 from sklearn.preprocessing import StandardScaler
-
+from sklearn.utils.class_weight import compute_class_weight, compute_sample_weight
+from sknn.mlp import Regressor, Layer
 sys.path.append('../')
 from source.groundtruth import *
 from source.computation_support import *
@@ -30,7 +30,7 @@ from source.graph_operations import *
 if __name__ == '__main__':
     num_cores = -1
 
-    num_imgs = 7
+    num_imgs = 500
 
     hdf5_dir = Path('../../data/hdf5_datasets/')
 
@@ -92,10 +92,34 @@ if __name__ == '__main__':
             X_train = training_dataset[:, :-1]
             y_train = training_dataset[:, -1]
 
-            regressors = [('SGDR', SGDRegressor(loss='huber', max_iter=5000, tol=1e-3)),
-                          ('MLPR', MLPRegressor(solver='adam', activation='relu', max_iter=5000)),
-                          ('LinReg', LinearRegression(n_jobs=-1)),
-                          ('Ridge', Ridge(alpha=2.0))]
+            y_train_balanced = compute_sample_weight('balanced', y_train)
+            # class_weights = compute_class_weight('balanced', np.unique(y_train), y_train)
+
+            validation_dataset = []
+            for ii in range(len(all_imgs_gradients)):
+                if img_subdirs[ii] == 'val':  # Need to change the name of directory to add the gradients to training dataset
+                    validation_dataset.extend(all_imgs_gradients[ii])
+
+            validation_dataset = np.array(training_dataset)
+            X_val = training_dataset[:, :-1]
+            y_val = training_dataset[:, -1]
+
+            y_val_balanced = compute_sample_weight('balanced', y_train)
+            # class_weights = compute_class_weight('balanced', np.unique(y_train), y_train)
+
+            regressors = [('LinReg', LinearRegression(n_jobs=-1)),
+                          # ('Elastic', ElasticNet(random_state=5)),
+                          # ('Ridge', Ridge(alpha=5)),
+                          ('SGDR', SGDRegressor(loss='epsilon_insensitive', penalty='elasticnet', alpha=0.0001, verbose=1, random_state=1, learning_rate='invscaling', early_stopping=True, validation_fraction=0.1, n_iter_no_change=5)),
+                          # ('SVR', LinearSVR(epsilon=0.0, loss='epsilon_insensitive', verbose=1, random_state=1)),
+                          ('MLPR', Regressor(layers=[Layer(type="Rectifier", units=13), Layer(type="Rectifier", units=6), Layer(type="Linear", units=1)],
+                                                      random_state=1,
+                                                      learning_rule='sgd',
+                                                      learning_rate=0.00001,
+                                                      batch_size=2000,
+                                                      valid_set=(X_val, y_val),
+                                                      loss_type='mse',
+                                                      verbose=True))]
 
             output_file_name = gradients_input_file.split('_')
             output_file_name[1] = 'Models'
@@ -108,12 +132,18 @@ if __name__ == '__main__':
 
             for name, regressor in regressors:
                 print('Performing ' + name)
-                reg = regressor
-                reg = make_pipeline(StandardScaler(), reg)
+                reg = Pipeline([('scl', StandardScaler()), (name, regressor)])
                 t0 = time.time()
-                reg.fit(X_train, y_train)
+                if name == 'MLPR':
+                    fit_params = {name + '__w': y_train_balanced}
+                    reg.fit(X_train, y_train, **fit_params)
+                    pdb.set_trace()
+                else:
+                    fit_params = {name + '__sample_weight': y_train_balanced}
+                    reg.fit(X_train, y_train, **fit_params)
+                    print('Coefficients', name, ' :', reg[name].coef_)
+
                 train_time = time.time() - t0
                 print("train time: %0.3fs" % train_time)
-
                 filename = name + '.sav'
                 dump(reg, outdir + filename)
