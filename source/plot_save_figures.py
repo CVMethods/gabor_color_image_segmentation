@@ -5,6 +5,7 @@ sns.set_style("white")
 import networkx as nx
 import pdb
 
+from PIL import Image
 from matplotlib import colors
 from mpl_toolkits.mplot3d import Axes3D
 from scipy.stats import gamma, lognorm
