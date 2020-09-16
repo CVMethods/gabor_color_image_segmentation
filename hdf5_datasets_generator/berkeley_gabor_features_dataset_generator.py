@@ -88,6 +88,7 @@ class ImageIndexer(object):
 
 
 def get_gabor_features(img_complex, gabor_filters, r_type, gsmooth, opn, selem_size):
+    num_cores = -1
     channels, rows, cols = img_complex.shape
     filter_responses = np.array(Parallel(n_jobs=num_cores, prefer='processes')(
         delayed(applyGabor_filterbank)(img_channel, gabor_filters, resp_type=r_type, smooth=gsmooth,
@@ -107,55 +108,37 @@ def get_gabor_features(img_complex, gabor_filters, r_type, gsmooth, opn, selem_s
     return g_features
 
 
-if __name__ == '__main__':
-    num_imgs = 500
-    hdf5_dir = Path('../../data/hdf5_datasets/')
-
-    if num_imgs is 500:
-        # Path to whole Berkeley image data set
-        hdf5_indir = hdf5_dir / 'complete' / 'images'
-        hdf5_outdir = hdf5_dir / 'complete' / 'features'
-
-    elif num_imgs is 7:
-        # Path to my 7 favourite images from the Berkeley data set
-        hdf5_indir = hdf5_dir / '7images' / 'images'
-        hdf5_outdir = hdf5_dir / '7images' / 'features'
-
-    elif num_imgs is 25:
-        # Path to 25 images from the Berkeley data set
-        hdf5_indir = hdf5_dir / '25images' / 'images'
-        hdf5_outdir = hdf5_dir / '25images' / 'features'
-
-    hdf5_outdir.mkdir(parents=True, exist_ok=True)
+def generate_h5_features_dataset(num_imgs):
+    hdf5_indir = Path('../../data/hdf5_datasets/' + str(num_imgs) + 'images/images')
+    hdf5_outdir = Path('../../data/hdf5_datasets/' + str(num_imgs) + 'images/features')
 
     # Generating Gabor filterbank
     min_periods = [2.]
     max_periods = [25., 45.]
     bandwidths = [(0.7, 30), (1.0, 45)]
-    crossing_points = [0.5, 0.65, 0.75, 0.9]
+    crossing_points = [(0.75, 0.75), (0.9, 0.9), (0.9, 0.75), (0.75, 0.9)]
     deviations = [3.0]
 
-    for min_period, max_period, (fb, ab), c1, stds in itertools.product(min_periods, max_periods, bandwidths, crossing_points, deviations):
+    r_type = 'L2'  # 'real'
+    gsmooth = True
+    opn = True
+    selem_size = 1
+    num_cores = -1
+
+    for min_period, max_period, (fb, ab), (c1, c2), stds in itertools.product(min_periods, max_periods, bandwidths,
+                                                                              crossing_points, deviations):
         print('Generating Gabor filterbank')
 
-        c2 = c1
         gabor_filters, frequencies, angles = makeGabor_filterbank(min_period, max_period, fb, ab, c1, c2, stds)
 
         n_freq = len(frequencies)
         n_angles = len(angles)
         color_space = 'HS'
 
-        r_type = 'L2'  # 'real'
-        gsmooth = True
-        opn = True
-        selem_size = 1
-        num_cores = -1
-
         # Read hdf5 file and extract its information
         print('Reading Berkeley image data set')
         t0 = time.time()
         file = h5py.File(hdf5_indir / "Berkeley_images.h5", "r+")
-        img_ids = np.array(file["/image_ids"])
         image_vectors = np.array(file["/images"])
         img_shapes = np.array(file["/image_shapes"])
 
@@ -169,16 +152,22 @@ if __name__ == '__main__':
         print('Computing Gabor features:')
         t0 = time.time()
         twoChannel_imgs = Parallel(n_jobs=num_cores)(
-            delayed(img2complex_normalized_colorspace)(img, shape, color_space) for img, shape in zip(images, img_shapes))
+            delayed(img2complex_normalized_colorspace)(img, shape, color_space) for img, shape in
+            zip(images, img_shapes))
 
         gabor_features = Parallel(n_jobs=num_cores, prefer='processes')(
-            delayed(get_gabor_features)(img, gabor_filters, r_type, gsmooth, opn, selem_size) for img in twoChannel_imgs)
+            delayed(get_gabor_features)(img, gabor_filters, r_type, gsmooth, opn, selem_size) for img in
+            twoChannel_imgs)
         t1 = time.time()
         print('Features computing time (using Parallel joblib): %.2fs' % (t1 - t0))
 
-        output_file = 'Berkeley_GaborFeatures_%df_%da_%dp_%dp_%.2ffb_%dab_%.2fcpf_%.2fcpa_%.1fstds.h5' \
-                      % (n_freq, n_angles, min_period, max_period, fb, ab, c1, c2, stds)
-        with ImageIndexer(hdf5_outdir / output_file,
+        gabor_conf = ('%df_%da_%dp_%dp_%.2ffb_%dab_%.2fcpf_%.2fcpa_%.1fstds'
+                                     % (n_freq, n_angles, min_period, max_period, fb, ab, c1, c2, stds))
+
+        h5_outdir = hdf5_outdir / gabor_conf
+        h5_outdir.mkdir(parents=True, exist_ok=True)
+
+        with ImageIndexer(h5_outdir / 'Gabor_features.h5',
                           buffer_size=num_imgs,
                           num_of_images=num_imgs) as imageindexer:
 
@@ -193,3 +182,8 @@ if __name__ == '__main__':
                 imageindexer.db.attrs['crossing_point1'] = c1
                 imageindexer.db.attrs['crossing_point2'] = c2
                 imageindexer.db.attrs['num_stds'] = stds
+
+
+if __name__ == '__main__':
+    num_imgs = 7
+    generate_h5_features_dataset(num_imgs)
