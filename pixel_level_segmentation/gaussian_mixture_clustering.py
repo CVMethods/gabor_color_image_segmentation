@@ -1,7 +1,6 @@
 import sys
 import h5py
 import matplotlib
-matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 
 from pathlib import Path
@@ -15,7 +14,7 @@ from sklearn import mixture
 sys.path.append('../')
 from source.groundtruth import *
 from source.metrics import *
-
+from source.computation_support import *
 
 def clustering_segmentation(i_dataset, dataset, algo_params, num_clusters, algo_name):
     # update parameters with dataset-specific values
@@ -122,15 +121,6 @@ def save_plot_metrics(ids, metrics, algo_name):
     plt.cla()
     plt.clf()
     plt.close()
-
-
-def get_num_segments(segments):
-    n_labels = []
-    for truth in segments:
-        n_labels.append(len(np.unique(truth)))
-    n_labels = np.array(n_labels)
-
-    return np.array((max(n_labels), min(n_labels), int(n_labels.mean()), int(hmean(n_labels))))
 
 
 def prepare_dataset(img_id, image, gabor_features, img_shape):

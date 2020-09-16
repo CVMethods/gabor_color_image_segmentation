@@ -5,6 +5,7 @@ sns.set_style("white")
 import networkx as nx
 import pdb
 
+from PIL import Image
 from matplotlib import colors
 from mpl_toolkits.mplot3d import Axes3D
 from scipy.stats import gamma, lognorm
@@ -22,6 +23,10 @@ def show_and_save_img(img, title, fontsize, save, outdir, imfile):
 
     if save:
         plt.savefig(outdir + imfile + '.png', transparent=True)
+
+    plt.cla()
+    plt.clf()
+    plt.close('all')
 
 
 def show_and_save_some_regions(img, regions, region, rag, save, outdir, imfile):
@@ -94,6 +99,10 @@ def show_and_save_some_regions(img, regions, region, rag, save, outdir, imfile):
         if save:
             plt.savefig(outdir + imfile + '_hist_%i' % r + '.png', bbox_inches='tight')
 
+    plt.cla()
+    plt.clf()
+    plt.close('all')
+
 
 def show_and_save_regions(img, regions, title, name, fontsize, save, outdir, imfile):
     superpixels = segmentation.mark_boundaries(img, regions, color=(0, 0, 0), mode='thick')
@@ -116,6 +125,10 @@ def show_and_save_regions(img, regions, title, name, fontsize, save, outdir, imf
     # plt.axis('tight')
     # plt.axis('off')
 
+    plt.cla()
+    plt.clf()
+    plt.close('all')
+
 
 def show_and_save_imgraph(img, regions, rag, title, name, fontsize, save, outdir, imfile, colbar_lim):
     lc = graph.show_rag(regions, rag, img, edge_width=1, img_cmap=None, border_color=None)
@@ -130,6 +143,10 @@ def show_and_save_imgraph(img, regions, rag, title, name, fontsize, save, outdir
     if save:
         plt.savefig(outdir + imfile + name + '.png', transparent=True)
 
+    plt.cla()
+    plt.clf()
+    plt.close('all')
+
 
 def show_and_save_spectralgraph(rag, title, name, fontsize, save, outdir, imfile):
     plt.figure(dpi=180)
@@ -142,6 +159,10 @@ def show_and_save_spectralgraph(rag, title, name, fontsize, save, outdir, imfile
     if save:
         plt.savefig(outdir + imfile + name + '.png')
 
+    plt.cla()
+    plt.clf()
+    plt.close('all')
+
 
 def show_and_save_affmat(aff_mat, title, name, fontsize, save, outdir, imfile):
     aff_mat = aff_mat.toarray()
@@ -153,6 +174,10 @@ def show_and_save_affmat(aff_mat, title, name, fontsize, save, outdir, imfile):
 
     if save:
             plt.savefig(outdir + imfile + name + '.png', bbox_inches='tight')
+
+    plt.cla()
+    plt.clf()
+    plt.close('all')
 
 
 def show_and_save_result(img, regions, title, label, name, fontsize, save, outdir, imfile):
@@ -189,3 +214,7 @@ def show_and_save_dist(weights, thresh, params, title, name, fontsize, save, out
 
     if save:
         plt.savefig(outdir + imfile + name + '.png', bbox_inches='tight')
+
+    plt.cla()
+    plt.clf()
+    plt.close('all')

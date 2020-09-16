@@ -4,11 +4,13 @@ import numpy as np
 import multiprocessing
 import skimage.segmentation as skim
 import networkx as nx
-from pyemd import emd, emd_samples
 import ot
 import skimage.future.graph as grph
 import matplotlib.pyplot as plt
 import pdb
+
+from skimage.morphology import erosion, disk, dilation, closing, opening, diamond
+from pyemd import emd, emd_samples
 from joblib import Parallel, delayed
 from skimage import io
 from skimage.measure import regionprops
@@ -18,6 +20,7 @@ from scipy import ndimage as ndi
 from scipy.signal import fftconvolve as convolve
 from scipy.ndimage import gaussian_filter
 from skimage.transform import rescale
+from scipy.stats import hmean
 
 
 def color_histogram(img, n_bins):
@@ -47,7 +50,6 @@ def color_3dhistogram(coor, n_bins):
 
     return [w, pos]
 
-
 # def color_3dhistogram(coor, n_bins):
 #     """
 #     Transforms the color pixels of a region from a color space (LAB ou RGB) to a 3D histogram of n_bins per axe.
@@ -71,9 +73,6 @@ def color_3dhistogram(coor, n_bins):
 #     w = np.array(w, dtype=np.float)
 #     w = w/w.sum()
 #     return [w, pos]
-
-
-
 
 
 def slic_superpixel(img, n_regions, convert2lab):
@@ -147,3 +146,26 @@ def em_dist_mine(signature, CM):
     #     w1 = np.float64(softmax(signature[0]))
     #     w2 = np.float64(softmax(signature[1]))
     return ot.emd2(w1, w2, CM, processes=-1) + np.abs(signature[0].sum() - signature[1].sum())  # The abs() was multiplied by 2
+
+
+def dist_label(labels):
+    return (labels[0] != labels[1]) * 1.
+
+
+def get_num_segments(segments):
+    n_labels = []
+    for truth in segments:
+        n_labels.append(len(np.unique(truth)))
+    n_labels = np.array(n_labels)
+
+    return np.array((max(n_labels), min(n_labels), int(n_labels.mean()), int(hmean(n_labels))))
+
+
+def get_gt_min_nsegments(ground_truth_segments):
+    n_labels = []
+    for truth in ground_truth_segments:
+        n_labels.append(len(np.unique(truth)))
+    min_nseg = min(n_labels)
+    pos_min_nseg = n_labels.index(min_nseg)
+
+    return ground_truth_segments[pos_min_nseg]
