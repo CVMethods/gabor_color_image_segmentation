@@ -106,29 +106,13 @@ class ImageIndexer(object):
         self.image_shapes_buffer = []
 
 
-if __name__ == '__main__':
-    num_imgs = 7
-    bsd_path = Path('../../data')
-    hdf5_dir = Path('../../data/hdf5_datasets')
+def generate_h5_images_dataset(num_imgs):
+    bsd_path = Path('../../data/images/' + str(num_imgs) + 'images')
+    hdf5_outdir = Path('../../data/hdf5_datasets/' + str(num_imgs) + 'images/images')
 
-    if num_imgs is 500:
-        # Path to whole Berkeley image data set
-        bsd_path = bsd_path / 'Berkeley'
-        hdf5_dir = hdf5_dir / 'complete' / 'images'
+    hdf5_outdir.mkdir(parents=True, exist_ok=True)
 
-    elif num_imgs is 7:
-        # Path to my 7 favourite images from the Berkeley data set
-        bsd_path = bsd_path / 'myFavorite_BSDimages'
-        hdf5_dir = hdf5_dir / '7images' / 'images'
-
-    elif num_imgs is 25:
-        # Path to 25 images from the Berkeley data set
-        bsd_path = bsd_path / '25_BSDimages'
-        hdf5_dir = hdf5_dir / '25images' / 'images'
-
-    hdf5_dir.mkdir(parents=True, exist_ok=True)
-
-    with ImageIndexer(hdf5_dir / "Berkeley_images.h5",
+    with ImageIndexer(hdf5_outdir / "Berkeley_images.h5",
                       buffer_size=num_imgs,
                       num_of_images=num_imgs) as imageindexer:
 
@@ -140,3 +124,8 @@ if __name__ == '__main__':
             for file_name in list_imgs:
                 image_array = io.imread(imgs_path / file_name)
                 imageindexer.add(file_name[:-4], subdir, image_array)
+
+
+if __name__ == '__main__':
+    num_imgs = 500
+    generate_h5_images_dataset(num_imgs)
