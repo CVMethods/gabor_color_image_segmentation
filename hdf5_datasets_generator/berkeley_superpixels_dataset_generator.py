@@ -77,32 +77,11 @@ class ImageIndexer(object):
         self.superpixels_buffer = []
 
 
-if __name__ == '__main__':
+def generate_h5_superpixels_dataset(num_imgs, n_slics):
     num_cores = -1
 
-    num_imgs = 7
-
-    hdf5_dir = Path('../../data/hdf5_datasets/')
-
-    if num_imgs is 500:
-        # Path to whole Berkeley image data set
-        hdf5_indir_im = hdf5_dir / 'complete' / 'images'
-        hdf5_outdir = hdf5_dir / 'complete' / 'superpixels'
-        num_imgs_dir = 'complete/'
-
-    elif num_imgs is 7:
-        # Path to my 7 favourite images from the Berkeley data set
-        hdf5_indir_im = hdf5_dir / '7images/' / 'images'
-        hdf5_outdir = hdf5_dir / '7images' / 'superpixels'
-        num_imgs_dir = '7images/'
-
-    elif num_imgs is 25:
-        # Path to 25 images from the Berkeley data set
-        hdf5_indir_im = hdf5_dir / '25images' / 'images'
-        hdf5_outdir = hdf5_dir / '25images' / 'superpixels'
-        num_imgs_dir = '25images/'
-
-    hdf5_outdir.mkdir(parents=True, exist_ok=True)
+    hdf5_indir_im = Path('../../data/hdf5_datasets/' + str(num_imgs)+'images/' + 'images')
+    hdf5_outdir = Path('../../data/hdf5_datasets/' + str(num_imgs)+'images/' + 'superpixels')
 
     print('Reading Berkeley image data set')
     t0 = time.time()
@@ -110,8 +89,6 @@ if __name__ == '__main__':
     images_file = h5py.File(hdf5_indir_im / "Berkeley_images.h5", "r+")
     image_vectors = np.array(images_file["/images"])
     img_shapes = np.array(images_file["/image_shapes"])
-    img_ids = np.array(images_file["/image_ids"])
-    img_subdirs = np.array(images_file["/image_subdirs"])
 
     images = np.array(Parallel(n_jobs=num_cores)(
         delayed(np.reshape)(img, (shape[0], shape[1], shape[2])) for img, shape in zip(image_vectors, img_shapes)))
@@ -120,13 +97,14 @@ if __name__ == '__main__':
     print('Reading hdf5 image data set time: %.2fs' % (t1 - t0))
 
     ''' Computing superpixel regions for all images'''
-    # Superpixels function parameters
-    n_regions = 500 * 4
+
+    hdf5_outdir = hdf5_outdir / (str(n_slics) + '_slics')
+    hdf5_outdir.mkdir(parents=True, exist_ok=True)
+
     convert2lab = True
 
     superpixels = Parallel(n_jobs=num_cores)(
-        delayed(slic_superpixel)(img, n_regions, convert2lab) for img in images)
-
+        delayed(slic_superpixel)(img, n_slics, convert2lab) for img in images)
 
     with ImageIndexer(hdf5_outdir / "Berkeley_superpixels.h5",
                       buffer_size=num_imgs,
@@ -134,5 +112,12 @@ if __name__ == '__main__':
 
         for slic in superpixels:
             imageindexer.add(slic)
-            imageindexer.db.attrs['num_slic_regions'] = n_regions
+            imageindexer.db.attrs['num_slic_regions'] = n_slics
 
+
+if __name__ == '__main__':
+    num_imgs = 7
+    # Superpixels function parameters
+    n_slics = 500 * 4
+
+    generate_h5_superpixels_dataset(num_imgs, n_slics)
