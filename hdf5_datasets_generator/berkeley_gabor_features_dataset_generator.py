@@ -108,24 +108,18 @@ def get_gabor_features(img_complex, gabor_filters, r_type, gsmooth, opn, selem_s
     return g_features
 
 
-def generate_h5_features_dataset(num_imgs):
+def generate_h5_features_dataset(num_imgs, periods, bandwidths, crossing_points, deviations):
     hdf5_indir = Path('../../data/hdf5_datasets/' + str(num_imgs) + 'images/images')
     hdf5_outdir = Path('../../data/hdf5_datasets/' + str(num_imgs) + 'images/features')
 
     # Generating Gabor filterbank
-    min_periods = [2.]
-    max_periods = [25., 45.]
-    bandwidths = [(0.7, 30), (1.0, 45)]
-    crossing_points = [(0.75, 0.75), (0.9, 0.9), (0.9, 0.75), (0.75, 0.9)]
-    deviations = [3.0]
-
     r_type = 'L2'  # 'real'
     gsmooth = True
     opn = True
     selem_size = 1
     num_cores = -1
 
-    for min_period, max_period, (fb, ab), (c1, c2), stds in itertools.product(min_periods, max_periods, bandwidths,
+    for (min_period, max_period), (fb, ab), (c1, c2), stds in itertools.product(periods, bandwidths,
                                                                               crossing_points, deviations):
         print('Generating Gabor filterbank')
 
@@ -186,4 +180,9 @@ def generate_h5_features_dataset(num_imgs):
 
 if __name__ == '__main__':
     num_imgs = 7
-    generate_h5_features_dataset(num_imgs)
+
+    periods = [(2., 25.), (2., 45.)]
+    bandwidths = [(0.7, 30), (1.0, 45)]
+    crossing_points = [(0.75, 0.75), (0.9, 0.9), (0.9, 0.75), (0.75, 0.9)]
+    deviations = [3.0]
+    generate_h5_features_dataset(num_imgs, periods, bandwidths, crossing_points, deviations)

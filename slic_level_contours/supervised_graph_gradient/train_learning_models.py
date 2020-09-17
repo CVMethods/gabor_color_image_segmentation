@@ -6,6 +6,7 @@ import matplotlib
 import matplotlib.pyplot as plt
 import numpy as np
 import pdb
+import seaborn as sns
 
 from pathlib import Path
 from joblib import Parallel, delayed, dump
@@ -18,39 +19,22 @@ from sklearn.linear_model import Lasso, LinearRegression, Ridge, ElasticNet, Log
 from sklearn.discriminant_analysis import LinearDiscriminantAnalysis, QuadraticDiscriminantAnalysis
 from sklearn.neural_network import MLPClassifier, MLPRegressor
 from sklearn.pipeline import make_pipeline, Pipeline
-from sklearn.preprocessing import StandardScaler
+from sklearn.preprocessing import StandardScaler, MinMaxScaler
 from sklearn.utils.class_weight import compute_class_weight, compute_sample_weight
 from sknn.mlp import Regressor, Layer
-sys.path.append('../')
+sys.path.append('../../')
 from source.groundtruth import *
 from source.computation_support import *
 from source.graph_operations import *
 
 
-if __name__ == '__main__':
+def train_models(num_imgs, n_slic, graph_type, similarity_measure):
     num_cores = -1
-
-    num_imgs = 500
-
-    hdf5_dir = Path('../../data/hdf5_datasets/')
-
-    if num_imgs is 500:
-        # Path to whole Berkeley image data set
-        hdf5_indir_im = hdf5_dir / 'complete' / 'images'
-        hdf5_indir_grad = hdf5_dir / 'complete' / 'gradients'
-        num_imgs_dir = 'complete/'
-
-    elif num_imgs is 7:
-        # Path to my 7 favourite images from the Berkeley data set
-        hdf5_indir_im = hdf5_dir / '7images/' / 'images'
-        hdf5_indir_grad = hdf5_dir / '7images' / 'gradients'
-        num_imgs_dir = '7images/'
-
-    elif num_imgs is 25:
-        # Path to 25 images from the Berkeley data set
-        hdf5_indir_im = hdf5_dir / '25images' / 'images'
-        hdf5_indir_grad = hdf5_dir / '25images' / 'gradients'
-        num_imgs_dir = '25images/'
+    source_dir = os.path.dirname(os.path.abspath(__file__))+'/'
+    hdf5_indir_im = Path(source_dir+'../../../data/hdf5_datasets/' + str(num_imgs) + 'images/' + 'images')
+    hdf5_indir_grad = Path(source_dir+'../../../data/hdf5_datasets/' + str(num_imgs) + 'images/' + 'gradients/' +
+                           str(n_slic) + '_slic_' + graph_type + '_' + similarity_measure)
+    num_imgs_dir = str(num_imgs) + 'images/'
 
     print('Reading Berkeley image data set')
     t0 = time.time()
@@ -67,11 +51,11 @@ if __name__ == '__main__':
     t1 = time.time()
     print('Reading hdf5 image data set time: %.2fs' % (t1 - t0))
 
-    input_files = os.listdir(hdf5_indir_grad)
-    for gradients_input_file in input_files:
-        with h5py.File(hdf5_indir_grad / gradients_input_file, "r+") as gradients_file:
+    input_directories = sorted(os.listdir(hdf5_indir_grad))
+    for gradients_input_dir in input_directories:
+        with h5py.File(hdf5_indir_grad / gradients_input_dir / 'gradients.h5', "r+") as gradients_file:
             print('Reading Berkeley features data set')
-            print('File name: ', gradients_input_file)
+            print('File name: ', gradients_input_dir)
             t0 = time.time()
             gradient_vectors = np.array(gradients_file["/perceptual_gradients"])
             gradient_shapes = np.array(gradients_file["/gradient_shapes"])
@@ -92,8 +76,32 @@ if __name__ == '__main__':
             X_train = training_dataset[:, :-1]
             y_train = training_dataset[:, -1]
 
-            y_train_balanced = compute_sample_weight('balanced', y_train)
+            X_train, y_train = balance_classes(X_train, y_train)
+
+
+            # y_train_balanced = compute_sample_weight('balanced', y_train)
             # class_weights = compute_class_weight('balanced', np.unique(y_train), y_train)
+            # plt.figure()
+            # sns.distplot(X_train[:, 0])
+            # plt.figure()
+            # sns.distplot(X_train[:, 1])
+            # plt.figure()
+            # sns.distplot(X_train[:, 2])
+            # plt.figure()
+            # sns.distplot(y_train)
+            # plt.figure()
+            # sns.distplot(y_train_balanced)
+            # plt.figure()
+            # plt.scatter(X_train[:, 0], y_train, c='red', marker='.', cmap=plt.cm.flag, label='imbalanced data')
+            # plt.figure()
+            # plt.scatter(X_train[:, 0], y_train_balanced, c='blue', marker='.', cmap=plt.cm.flag, label='imbalanced data')
+            #
+            #
+            # plt.figure()
+            # plt.scatter(X_bal[:, 0], y_bal, c='green', marker='.', cmap=plt.cm.flag, label='imbalanced data')
+            # plt.show(block=False)
+            #
+            # pdb.set_trace()
 
             validation_dataset = []
             for ii in range(len(all_imgs_gradients)):
@@ -104,46 +112,64 @@ if __name__ == '__main__':
             X_val = training_dataset[:, :-1]
             y_val = training_dataset[:, -1]
 
-            y_val_balanced = compute_sample_weight('balanced', y_train)
+            X_val, y_val = balance_classes(X_val, y_val)
+
+            #y_val_balanced = compute_sample_weight('balanced', y_train)
             # class_weights = compute_class_weight('balanced', np.unique(y_train), y_train)
 
             regressors = [('LinReg', LinearRegression(n_jobs=-1)),
                           # ('Elastic', ElasticNet(random_state=5)),
                           # ('Ridge', Ridge(alpha=5)),
-                          ('SGDR', SGDRegressor(loss='epsilon_insensitive', penalty='elasticnet', alpha=0.0001, verbose=1, random_state=1, learning_rate='invscaling', early_stopping=True, validation_fraction=0.1, n_iter_no_change=5)),
+                          ('SGDR', SGDRegressor(loss='epsilon_insensitive', penalty='elasticnet', alpha=0.0001, verbose=1, random_state=1, learning_rate='invscaling', early_stopping=True, validation_fraction=0.3, n_iter_no_change=5)),
                           # ('SVR', LinearSVR(epsilon=0.0, loss='epsilon_insensitive', verbose=1, random_state=1)),
-                          ('MLPR', Regressor(layers=[Layer(type="Rectifier", units=13), Layer(type="Rectifier", units=6), Layer(type="Linear", units=1)],
+                          ('MLPR', Regressor(layers=[Layer(type="Rectifier", units=16), Layer(type="Rectifier", units=8), Layer(type="Linear", units=1)],
                                                       random_state=1,
                                                       learning_rule='sgd',
-                                                      learning_rate=0.00001,
-                                                      batch_size=2000,
+                                                      learning_rate=0.0001,
+                                                      batch_size=1400,
                                                       valid_set=(X_val, y_val),
                                                       loss_type='mse',
                                                       verbose=True))]
 
-            output_file_name = gradients_input_file.split('_')
-            output_file_name[1] = 'Models'
-            output_file = '_'.join(output_file_name)
-
-            outdir = '../../data/models/' + num_imgs_dir + output_file[:-3] + '/%d_regions/' % n_regions
+            outdir = source_dir+'../../../data/models/' + \
+                     num_imgs_dir + \
+                     (str(n_slic) + '_slic_' + graph_type + '_' + similarity_measure) + '/' + \
+                     gradients_input_dir + '/'
 
             if not os.path.exists(outdir):
                 os.makedirs(outdir)
 
             for name, regressor in regressors:
                 print('Performing ' + name)
-                reg = Pipeline([('scl', StandardScaler()), (name, regressor)])
+                reg = Pipeline([('scl', MinMaxScaler()), (name, regressor)])
                 t0 = time.time()
                 if name == 'MLPR':
-                    fit_params = {name + '__w': y_train_balanced}
-                    reg.fit(X_train, y_train, **fit_params)
-                    pdb.set_trace()
+                    #fit_params = {name + '__w': y_train_balanced}
+                    # reg.fit(X_train, y_train, **fit_params)
+                    reg.fit(X_train, y_train)
                 else:
-                    fit_params = {name + '__sample_weight': y_train_balanced}
-                    reg.fit(X_train, y_train, **fit_params)
+                    #fit_params = {name + '__sample_weight': y_train_balanced}
+                    # reg.fit(X_train, y_train, **fit_params)
+                    X_train = np.concatenate((X_train, X_val))
+                    y_train = np.concatenate((y_train, y_val))
+                    reg.fit(X_train, y_train)
                     print('Coefficients', name, ' :', reg[name].coef_)
 
                 train_time = time.time() - t0
                 print("train time: %0.3fs" % train_time)
                 filename = name + '.sav'
                 dump(reg, outdir + filename)
+
+
+if __name__ == '__main__':
+
+    num_imgs = 7
+    n_slic = 500 * 4
+
+    # Graph function parameters
+    graph_type = 'rag'  # Choose: 'complete', 'knn', 'rag', 'eps'
+
+    # Distance parameter
+    similarity_measure = 'OT'  # Choose: 'OT' for Earth Movers Distance or 'KL' for Kullback-Leiber divergence
+
+    train_models(num_imgs, n_slic, graph_type, similarity_measure)

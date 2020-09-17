@@ -169,3 +169,18 @@ def get_gt_min_nsegments(ground_truth_segments):
     pos_min_nseg = n_labels.index(min_nseg)
 
     return ground_truth_segments[pos_min_nseg]
+
+
+def balance_classes(X, y):
+    cls, cnts = np.unique(y, return_counts=True)
+    ind = np.argsort(cnts)[::-1]
+    X_resampled = X[y == cls[ind[0]], :]
+    y_resampled = y[y == cls[ind[0]]]
+    for ii in cls[1:]:
+        XX = X[y == ii, :]
+        yy = y[y == ii]
+        indx = np.random.choice(np.arange(len(XX)), size=cnts[0])
+        X_resampled = np.vstack((X_resampled, XX[indx, :]))
+        y_resampled = np.hstack((y_resampled, yy[indx]))
+
+    return X_resampled, y_resampled

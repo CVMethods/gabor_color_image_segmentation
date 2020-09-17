@@ -156,12 +156,12 @@ def perceptual_gradient_computation(im_file, img, regions_slic, graph_type, grap
     return stacked_gradients
 
 
-def generate_h5_graph_gradients_dataset(num_imgs, n_slics, graph_type, similarity_measure):
+def generate_h5_graph_gradients_dataset(num_imgs, n_slic, graph_type, similarity_measure):
     num_cores = -1
     hdf5_indir_im = Path('../../data/hdf5_datasets/'+str(num_imgs)+'images/' + 'images')
-    hdf5_indir_spix = Path('../../data/hdf5_datasets/'+str(num_imgs)+'images/' + 'superpixels/'+str(n_slics)+'_slics')
+    hdf5_indir_spix = Path('../../data/hdf5_datasets/'+str(num_imgs)+'images/' + 'superpixels/'+str(n_slic)+'_slic')
     hdf5_indir_feat = Path('../../data/hdf5_datasets/'+str(num_imgs)+'images/' + 'features')
-    hdf5_outdir = Path('../../data/hdf5_datasets/'+str(num_imgs)+'images/' + 'graph_gradients/'+str(n_slics) + '_slics_' + graph_type + '_' + similarity_measure)
+    hdf5_outdir = Path('../../data/hdf5_datasets/'+str(num_imgs)+'images/' + 'gradients/'+str(n_slic) + '_slic_' + graph_type + '_' + similarity_measure)
 
     num_imgs_dir = str(num_imgs)+'images/'
 
@@ -202,9 +202,11 @@ def generate_h5_graph_gradients_dataset(num_imgs, n_slics, graph_type, similarit
     save_fig = True
     fontsize = 10
 
-    outdir = '../outdir/graph_gradients/' + \
-             num_imgs_dir + 'slic_level/' + \
-             (str(n_slics) + '_slics_' + graph_type + '_' + similarity_measure) + \
+    outdir = '../outdir/' + \
+             num_imgs_dir + \
+             'gradients/' + \
+             'slic_level/' + \
+             (str(n_slic) + '_slic_' + graph_type + '_' + similarity_measure) + \
              '/computation_support/'
 
     if not os.path.exists(outdir):
@@ -254,10 +256,11 @@ def generate_h5_graph_gradients_dataset(num_imgs, n_slics, graph_type, similarit
             # Compute ground distance matrix
             ground_distance = cost_matrix_texture(n_freq, n_angles)
 
-            outdir = '../outdir/graph_gradients/' + \
+            outdir = '../outdir/' + \
                      num_imgs_dir + \
+                     'gradients/' + \
                      'slic_level/' + \
-                     (str(n_slics) + '_slics_' + graph_type + '_' + similarity_measure) + '/' + \
+                     (str(n_slic) + '_slic_' + graph_type + '_' + similarity_measure) + '/' + \
                      features_input_dir + '/'
 
             if not os.path.exists(outdir):
@@ -270,7 +273,7 @@ def generate_h5_graph_gradients_dataset(num_imgs, n_slics, graph_type, similarit
             h5_outdir = hdf5_outdir / features_input_dir
             h5_outdir.mkdir(parents=True, exist_ok=True)
 
-            with ImageIndexer(h5_outdir / 'graph_gradients.h5',
+            with ImageIndexer(h5_outdir / 'gradients.h5',
                               buffer_size=num_imgs,
                               num_of_images=num_imgs) as imageindexer:
 
@@ -285,7 +288,7 @@ def generate_h5_graph_gradients_dataset(num_imgs, n_slics, graph_type, similarit
 if __name__ == '__main__':
     num_imgs = 7
     # Superpixels function parameters
-    n_slics = 500 * 4
+    n_slic = 500 * 4
 
     # Graph function parameters
     graph_type = 'rag'  # Choose: 'complete', 'knn', 'rag', 'eps'
@@ -293,4 +296,4 @@ if __name__ == '__main__':
     # Graph distance parameters
     method = 'OT'  # Choose: 'OT' for Earth Movers Distance or 'KL' for Kullback-Leiber divergence
 
-    generate_h5_graph_gradients_dataset(num_imgs, n_slics, graph_type, method)
+    generate_h5_graph_gradients_dataset(num_imgs, n_slic, graph_type, method)

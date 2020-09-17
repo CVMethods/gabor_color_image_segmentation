@@ -2,6 +2,7 @@ import sys
 import h5py
 
 from pathlib import Path
+
 sys.path.append('../')
 from source.metrics import *
 from source.groundtruth import *
@@ -10,7 +11,7 @@ from source.plot_save_figures import *
 from source.color_seg_methods import *
 
 
-def get_img_contours(im_file, img, regions_slic, graph_raw, perceptual_gradients, outdir):
+def get_img_contours(im_file, img, regions_slic, graph_raw, perceptual_gradients, gradients_dir, outdir):
     print('##############################', im_file, '##############################')
 
     graph_weighted = graph_raw.copy()
@@ -18,7 +19,8 @@ def get_img_contours(im_file, img, regions_slic, graph_raw, perceptual_gradients
     if gradients_dir == 'gradients':
         perceptual_gradients = np.sum(perceptual_gradients[:, :-1], axis=-1)
 
-    perceptual_gradients = (perceptual_gradients - min(perceptual_gradients)) / (max(perceptual_gradients) - min(perceptual_gradients)) * 255
+    perceptual_gradients = (perceptual_gradients - min(perceptual_gradients)) / (
+                max(perceptual_gradients) - min(perceptual_gradients)) * 255
 
     for i_edge, e in enumerate(list(graph_raw.edges)):
         graph_weighted[e[0]][e[1]]['weight'] = perceptual_gradients[i_edge]
@@ -32,35 +34,16 @@ def get_img_contours(im_file, img, regions_slic, graph_raw, perceptual_gradients
     # plt.imsave(outdir + im_file + '.png', img_grad, cmap='gray')
 
 
-if __name__ == '__main__':
+def generate_imgcontours_from_graphs(num_imgs, n_slic, graph_type, similarity_measure, gradients_dir, bsd_subset):
     num_cores = -1
 
-    num_imgs = 500
-    gradients_dir = 'gradients'
-    bsd_subset = 'all'
+    hdf5_indir_im = Path('../../data/hdf5_datasets/' + str(num_imgs) + 'images/' + 'images')
+    hdf5_indir_spix = Path('../../data/hdf5_datasets/' + str(num_imgs) + 'images/' + 'superpixels/' +
+                           str(n_slic) + '_slic')
+    hdf5_indir_grad = Path('../../data/hdf5_datasets/' + str(num_imgs) + 'images/' + gradients_dir + '/' +
+                           str(n_slic) + '_slic_' + graph_type + '_' + similarity_measure)
 
-    hdf5_dir = Path('../../data/hdf5_datasets/')
-
-    if num_imgs is 500:
-        # Path to whole Berkeley image data set
-        hdf5_indir_im = hdf5_dir / 'complete' / 'images'
-        hdf5_indir_spix = hdf5_dir / 'complete' / 'superpixels'
-        hdf5_indir_grad = hdf5_dir / 'complete' / gradients_dir
-        num_imgs_dir = 'complete/'
-
-    elif num_imgs is 7:
-        # Path to my 7 favourite images from the Berkeley data set
-        hdf5_indir_im = hdf5_dir / '7images/' / 'images'
-        hdf5_indir_spix = hdf5_dir / '7images' / 'superpixels'
-        hdf5_indir_grad = hdf5_dir / '7images' / gradients_dir
-        num_imgs_dir = '7images/'
-
-    elif num_imgs is 25:
-        # Path to 25 images from the Berkeley data set
-        hdf5_indir_im = hdf5_dir / '25images' / 'images'
-        hdf5_indir_spix = hdf5_dir / '25images' / 'superpixels'
-        hdf5_indir_grad = hdf5_dir / '25images' / gradients_dir
-        num_imgs_dir = '25images/'
+    num_imgs_dir = str(num_imgs) + 'images/'
 
     print('Reading Berkeley image data set')
     t0 = time.time()
@@ -90,7 +73,8 @@ if __name__ == '__main__':
     if bsd_subset == 'test' or gradients_dir == 'predicted_gradients':
         test_indices = []
         for ii in range(len(images)):
-            if img_subdirs[ii] == 'test':  # Need to change the name of directory to add the gradients to training dataset
+            if img_subdirs[
+                ii] == 'test':  # Need to change the name of directory to add the gradients to training dataset
                 test_indices.append(ii)
 
         img_ids = img_ids[test_indices]
@@ -98,31 +82,22 @@ if __name__ == '__main__':
         superpixels = superpixels[test_indices]
 
     ''' Computing Graphs for test set images'''
-    # Graph function parameters
-    graph_type = 'knn'  # Choose: 'complete', 'knn', 'rag'
     kneighbors = 8
     radius = 10
-
     raw_graphs = Parallel(n_jobs=num_cores)(
         delayed(get_graph)(img, regions_slic, graph_type, kneighbors, radius) for img, regions_slic in
         zip(images, superpixels))
 
-    # Segmentation parameters
-    method = 'OT'  # Choose: 'OT' for Earth Movers Distance or 'KL' for Kullback-Leiber divergence
-    graph_mode = 'mst'  # Choose: 'complete' to use whole graph or 'mst' to use Minimum Spanning Tree
-    law_type = 'log'  # Choose 'log' for lognorm distribution or 'gamma' for gamma distribution
-    cut_level = 0.9  # set threshold at the 90% quantile level
-
     if gradients_dir == 'gradients':
 
-        input_files = os.listdir(hdf5_indir_grad)
+        input_directories = sorted(os.listdir(hdf5_indir_grad))
         all_f_scores = []
         all_precisions = []
         all_recalls = []
-        for gradients_input_file in input_files:
-            with h5py.File(hdf5_indir_grad / gradients_input_file, "r+") as gradients_file:
+        for gradients_input_dir in input_directories:
+            with h5py.File(hdf5_indir_grad / gradients_input_dir / 'gradients.h5', "r+") as gradients_file:
                 print('Reading Berkeley features data set')
-                print('File name: ', gradients_input_file)
+                print('File name: ', gradients_input_dir)
                 t0 = time.time()
 
                 gradient_vectors = np.array(gradients_file["/perceptual_gradients"])
@@ -133,54 +108,69 @@ if __name__ == '__main__':
                     gradient_shapes = gradient_shapes[test_indices]
 
                 imgs_gradients = Parallel(n_jobs=num_cores)(
-                delayed(np.reshape)(gradients, (shape[0], shape[1])) for gradients, shape in
-                zip(gradient_vectors, gradient_shapes))
+                    delayed(np.reshape)(gradients, (shape[0], shape[1])) for gradients, shape in
+                    zip(gradient_vectors, gradient_shapes))
 
                 outdir = '../outdir/' + \
                          'slic_level_contours/' + \
                          num_imgs_dir + \
-                         method + '_' + graph_type + '/' + \
+                         (str(n_slic) + '_slic_' + graph_type + '_' + similarity_measure) + '/' + \
                          bsd_subset + '_' + gradients_dir + '/' + \
-                         gradients_input_file[:-3] + '/'
+                         gradients_input_dir + '/'
 
                 if not os.path.exists(outdir):
                     os.makedirs(outdir)
 
-                metrics_values = Parallel(n_jobs=num_cores)(
-                    delayed(get_img_contours)(im_file, img, regions_slic, graph_raw, perceptual_gradients, outdir)
-                        for im_file, img, regions_slic, graph_raw, perceptual_gradients in
-                        zip(img_ids, images, superpixels, raw_graphs, imgs_gradients))
+                Parallel(n_jobs=num_cores)(
+                    delayed(get_img_contours)(im_file, img, regions_slic, graph_raw, perceptual_gradients, gradients_dir, outdir)
+                    for im_file, img, regions_slic, graph_raw, perceptual_gradients in
+                    zip(img_ids, images, superpixels, raw_graphs, imgs_gradients))
 
     if gradients_dir == 'predicted_gradients':
 
-        model_input_dirs = os.listdir(hdf5_indir_grad)
+        model_input_dirs = sorted(os.listdir(hdf5_indir_grad))
         for mm, model_name in enumerate(model_input_dirs):
-            input_files = os.listdir(hdf5_indir_grad / model_name)
+            input_directories = sorted(os.listdir(hdf5_indir_grad / model_name))
 
-            for gradients_input_file in input_files:
-                with h5py.File(hdf5_indir_grad / model_name / gradients_input_file, "r+") as gradients_file:
+            for gradients_input_dir in input_directories:
+                with h5py.File(hdf5_indir_grad / model_name / gradients_input_dir / 'predicted_gradients.h5',
+                               "r+") as gradients_file:
                     print('Reading Berkeley features data set')
-                    print('File name: ', gradients_input_file)
+                    print('File name: ', gradients_input_dir)
                     t0 = time.time()
 
                     imgs_gradients = np.array(gradients_file["/predicted_gradients"])
 
                     outdir = '../outdir/' + \
-                             'slic_level_contours/' + \
                              num_imgs_dir + \
-                             method + '_' + graph_type + '/' + \
+                             'slic_level_contours/' + \
+                             (str(n_slic) + '_slic_' + graph_type + '_' + similarity_measure) + '/' + \
                              gradients_dir + '/' + \
-                             gradients_input_file[:-3] + '/'
+                             model_name + '/' + \
+                             gradients_input_dir + '/'
 
                     if not os.path.exists(outdir):
                         os.makedirs(outdir)
 
-                    metrics_values = Parallel(n_jobs=num_cores)(
+                    _ = Parallel(n_jobs=num_cores)(
                         delayed(get_img_contours)(im_file, img, regions_slic, graph_raw, perceptual_gradients,
-                                                  outdir)
+                                                  gradients_dir, outdir)
                         for im_file, img, regions_slic, graph_raw, perceptual_gradients in
                         zip(img_ids, images, superpixels, raw_graphs, imgs_gradients))
 
 
+if __name__ == '__main__':
+    num_imgs = 7
 
+    n_slic = 500 * 4
 
+    # Graph function parameters
+    graph_type = 'rag'  # Choose: 'complete', 'knn', 'rag', 'eps'
+
+    # Distance parameter
+    similarity_measure = 'OT'  # Choose: 'OT' for Earth Movers Distance or 'KL' for Kullback-Leiber divergence
+
+    gradients_dir = 'predicted_gradients'  # 'predicted_gradients'
+    bsd_subset = 'all'
+
+    generate_imgcontours_from_graphs(num_imgs, n_slic, graph_type, similarity_measure, gradients_dir, bsd_subset)
