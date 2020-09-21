@@ -205,7 +205,6 @@ def generate_h5_graph_gradients_dataset(num_imgs, n_slic, graph_type, similarity
     outdir = '../outdir/' + \
              num_imgs_dir + \
              'gradients/' + \
-             'slic_level/' + \
              (str(n_slic) + '_slic_' + graph_type + '_' + similarity_measure) + \
              '/computation_support/'
 
@@ -259,7 +258,6 @@ def generate_h5_graph_gradients_dataset(num_imgs, n_slic, graph_type, similarity
             outdir = '../outdir/' + \
                      num_imgs_dir + \
                      'gradients/' + \
-                     'slic_level/' + \
                      (str(n_slic) + '_slic_' + graph_type + '_' + similarity_measure) + '/' + \
                      features_input_dir + '/'
 
