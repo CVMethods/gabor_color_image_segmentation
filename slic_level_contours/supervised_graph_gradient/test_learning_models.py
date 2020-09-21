@@ -7,6 +7,8 @@ import matplotlib.pyplot as plt
 import numpy as np
 import pdb
 
+from tensorflow.keras.models import Sequential, save_model, load_model
+
 from pathlib import Path
 from joblib import Parallel, delayed, dump, load
 from sklearn.neighbors import kneighbors_graph
@@ -19,7 +21,7 @@ from sklearn.linear_model import Lasso, LinearRegression, Ridge, ElasticNet
 from sklearn.discriminant_analysis import LinearDiscriminantAnalysis, QuadraticDiscriminantAnalysis
 from sklearn.neural_network import MLPClassifier, MLPRegressor
 from sklearn.pipeline import make_pipeline
-from sklearn.preprocessing import StandardScaler
+from sklearn.preprocessing import StandardScaler, scale, minmax_scale
 
 from sklearn.metrics import mean_squared_error, accuracy_score, mean_absolute_error, r2_score
 
@@ -95,13 +97,16 @@ def predicted_gradient_computation(im_file, img, regions_slic, graph_raw, percep
 
     graph_pred = graph_raw.copy()
     X_test = perceptual_gradients[:, :-1]
-    # y_test = perceptual_gradients[:, -1]
-    #
-    y_pred = model.predict(X_test)
-    #y_pred = (y_pred - min(y_pred)) / (max(y_pred) - min(y_pred))
 
-    if model.steps[1][0] == 'MLPR':
-        y_pred = y_pred.flatten() #1 -
+    if hasattr(model, 'steps'):
+        y_pred = model.predict(X_test)
+        if model.steps[0][0] == 'MLPR':
+            y_pred = y_pred.flatten()
+    else:
+        y_pred = model.predict(X_test)
+        y_pred = y_pred.flatten()
+
+    # y_pred = (y_pred - min(y_pred)) / (max(y_pred) - min(y_pred))
 
     for i_edge, e in enumerate(list(graph_raw.edges)):
         graph_pred[e[0]][e[1]]['weight'] = y_pred[i_edge]
@@ -160,9 +165,6 @@ def test_models(num_imgs, n_slic, graph_type, similarity_measure):
         delayed(np.reshape)(img_spix, (shape[0], shape[1])) for img_spix, shape in
         zip(superpixels_vectors, img_shapes)))
 
-    n_regions = superpixels_file.attrs['num_slic_regions']
-    n_slic_regions = str(superpixels_file.attrs['num_slic_regions']) + '_regions'
-
     t1 = time.time()
     print('Reading hdf5 image data set time: %.2fs' % (t1 - t0))
 
@@ -202,26 +204,39 @@ def test_models(num_imgs, n_slic, graph_type, similarity_measure):
             model_input_files = sorted(os.listdir(sav_indir / gradients_input_dir))
 
             for mm, model_file_name in enumerate(model_input_files):
-                print('Loading model: ' + model_file_name[:-4])
-                model = load(sav_indir / gradients_input_dir / model_file_name)
+                model_name = model_file_name.split('.')[0]
+                ext = model_file_name.split('.')[1]
 
-                outdir = source_dir+'../../outdir/'+ \
+                print('Loading model: ' + model_name)
+                if ext == 'sav':
+                    model = load(sav_indir / gradients_input_dir / model_file_name )
+                if ext == 'h5':
+                    model = load_model(sav_indir / gradients_input_dir / model_file_name)
+
+                outdir = source_dir+'../../outdir/' + \
                                   num_imgs_dir + \
-                                  'predicted_gradients/ ' + \
+                                  'predicted_gradients/' + \
                                   (str(n_slic) + '_slic_' + graph_type + '_' + similarity_measure) + '/' + \
-                                  model_file_name[:-4] + '/' + \
+                                  model_name + '/' + \
                                   gradients_input_dir + '/'
 
                 if not os.path.exists(outdir):
                     os.makedirs(outdir)
 
-                hdf5_outdir_model = hdf5_outdir / model_file_name[:-4] / gradients_input_dir
+                hdf5_outdir_model = hdf5_outdir / model_name / gradients_input_dir
                 hdf5_outdir_model.mkdir(parents=True, exist_ok=True)
 
-                predicted_gradients = Parallel(n_jobs=num_cores)(
-                    delayed(predicted_gradient_computation)(im_file, img, regions_slic, graph_raw, perceptual_gradients, model, outdir)
-                    for im_file, img, regions_slic, graph_raw, perceptual_gradients in
-                    zip(img_ids, images, superpixels, test_raw_graphs, testing_dataset))
+                if ext == 'sav':
+                    predicted_gradients = Parallel(n_jobs=num_cores)(
+                        delayed(predicted_gradient_computation)(im_file, img, regions_slic, graph_raw, perceptual_gradients, model, outdir)
+                        for im_file, img, regions_slic, graph_raw, perceptual_gradients in
+                        zip(img_ids, images, superpixels, test_raw_graphs, testing_dataset))
+
+                elif ext == 'h5':
+                    predicted_gradients = Parallel(n_jobs=1)(
+                        delayed(predicted_gradient_computation)(im_file, img, regions_slic, graph_raw, perceptual_gradients, model, outdir)
+                        for im_file, img, regions_slic, graph_raw, perceptual_gradients in
+                        zip(img_ids, images, superpixels, test_raw_graphs, testing_dataset))
 
                 with ImageIndexer(hdf5_outdir_model / 'predicted_gradients.h5',
                               buffer_size=num_imgs,
@@ -229,13 +244,12 @@ def test_models(num_imgs, n_slic, graph_type, similarity_measure):
 
                     for gradients in predicted_gradients:
                         imageindexer.add(gradients)
-                        imageindexer.db.attrs['num_slic_regions'] = n_regions
 
 
 if __name__ == '__main__':
 
     num_imgs = 7
-    n_slic = 500 * 4
+    n_slic = 500 * 2
 
     # Graph function parameters
     graph_type = 'rag'  # Choose: 'complete', 'knn', 'rag', 'eps'
