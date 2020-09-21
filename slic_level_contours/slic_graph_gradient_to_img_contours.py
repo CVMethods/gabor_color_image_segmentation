@@ -73,8 +73,7 @@ def generate_imgcontours_from_graphs(num_imgs, n_slic, graph_type, similarity_me
     if bsd_subset == 'test' or gradients_dir == 'predicted_gradients':
         test_indices = []
         for ii in range(len(images)):
-            if img_subdirs[
-                ii] == 'test':  # Need to change the name of directory to add the gradients to training dataset
+            if img_subdirs[ii] == 'test':  # Need to change the name of directory to add the gradients to training dataset
                 test_indices.append(ii)
 
         img_ids = img_ids[test_indices]
@@ -91,9 +90,7 @@ def generate_imgcontours_from_graphs(num_imgs, n_slic, graph_type, similarity_me
     if gradients_dir == 'gradients':
 
         input_directories = sorted(os.listdir(hdf5_indir_grad))
-        all_f_scores = []
-        all_precisions = []
-        all_recalls = []
+
         for gradients_input_dir in input_directories:
             with h5py.File(hdf5_indir_grad / gradients_input_dir / 'gradients.h5', "r+") as gradients_file:
                 print('Reading Berkeley features data set')
@@ -112,10 +109,10 @@ def generate_imgcontours_from_graphs(num_imgs, n_slic, graph_type, similarity_me
                     zip(gradient_vectors, gradient_shapes))
 
                 outdir = '../outdir/' + \
-                         'slic_level_contours/' + \
                          num_imgs_dir + \
+                         'image_contours/' + \
                          (str(n_slic) + '_slic_' + graph_type + '_' + similarity_measure) + '/' + \
-                         bsd_subset + '_' + gradients_dir + '/' + \
+                         'SimpleSum' + '_' + bsd_subset + '/' + \
                          gradients_input_dir + '/'
 
                 if not os.path.exists(outdir):
@@ -143,9 +140,8 @@ def generate_imgcontours_from_graphs(num_imgs, n_slic, graph_type, similarity_me
 
                     outdir = '../outdir/' + \
                              num_imgs_dir + \
-                             'slic_level_contours/' + \
+                             'image_contours/' + \
                              (str(n_slic) + '_slic_' + graph_type + '_' + similarity_measure) + '/' + \
-                             gradients_dir + '/' + \
                              model_name + '/' + \
                              gradients_input_dir + '/'
 
@@ -162,7 +158,7 @@ def generate_imgcontours_from_graphs(num_imgs, n_slic, graph_type, similarity_me
 if __name__ == '__main__':
     num_imgs = 7
 
-    n_slic = 500 * 4
+    n_slic = 500 * 2
 
     # Graph function parameters
     graph_type = 'rag'  # Choose: 'complete', 'knn', 'rag', 'eps'
