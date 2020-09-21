@@ -94,7 +94,8 @@ def get_gabor_features(img_complex, gabor_filters, r_type, gsmooth, opn, selem_s
         delayed(applyGabor_filterbank)(img_channel, gabor_filters, resp_type=r_type, smooth=gsmooth,
                                        morph_opening=opn, se_z=selem_size) for img_channel in img_complex))
 
-    g_responses_norm = normalize_img(filter_responses, rows, cols)
+    g_responses_norm = filter_responses
+    # g_responses_norm = normalize_img(filter_responses, rows, cols)
     # print(np.sum(g_responses_norm**2) / (rows*cols))
 
     g_features = []
@@ -114,9 +115,9 @@ def generate_h5_features_dataset(num_imgs, periods, bandwidths, crossing_points,
 
     # Generating Gabor filterbank
     r_type = 'L2'  # 'real'
-    gsmooth = True
+    gsmooth = False
     opn = True
-    selem_size = 1
+    selem_size = 2
     num_cores = -1
 
     for (min_period, max_period), (fb, ab), (c1, c2), stds in itertools.product(periods, bandwidths,
@@ -127,7 +128,7 @@ def generate_h5_features_dataset(num_imgs, periods, bandwidths, crossing_points,
 
         n_freq = len(frequencies)
         n_angles = len(angles)
-        color_space = 'HS'
+        color_space = 'LAB'  # HS, HSV, HV, LAB
 
         # Read hdf5 file and extract its information
         print('Reading Berkeley image data set')
