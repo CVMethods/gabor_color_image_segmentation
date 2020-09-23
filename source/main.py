@@ -9,14 +9,14 @@ from slic_level_contours.supervised_graph_gradient.test_learning_models import *
 from slic_level_contours.slic_graph_gradient_to_img_contours import *
 
 
-num_imgs = 7
+num_imgs = 500
 
-periods = [(2., 45.), (2., 20.), (4., 45.), (4., 20.)]  #(2., 25.),
-bandwidths = [(1., 45), (0.7, 30)]  #, (1.0, 45)
-crossing_points = [(0.65, 0.65), (0.9, 0.9)]  #
+periods = [(2., 45.)]  #(2., 25.),, (2., 20.), (4., 45.), (4., 20.)
+bandwidths = [(1., 45)]  #, (1.0, 45), (0.7, 30)
+crossing_points = [(0.9, 0.9)]  #(0.65, 0.65),
 deviations = [3.]
 
-n_slic = 500 * 2
+n_slic = 500 * 4
 
 # Graph function parameters
 graph_type = 'rag'  # Choose: 'complete', 'knn', 'rag', 'eps'
@@ -35,6 +35,6 @@ bsd_subset = 'test'
 generate_imgcontours_from_graphs(num_imgs, n_slic, graph_type, similarity_measure, gradients_dir, bsd_subset)
 
 gradients_dir = 'gradients'
-bsd_subset = 'test'
+bsd_subset = 'all'
 generate_imgcontours_from_graphs(num_imgs, n_slic, graph_type, similarity_measure, gradients_dir, bsd_subset)
 
