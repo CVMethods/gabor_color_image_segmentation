@@ -152,6 +152,17 @@ def BuildModel(X):
     model.compile(loss=MeanSquaredError(), optimizer='adam')
     return model
 
+def SmallModel(X):
+    kernel_init = 'normal'
+
+    # it is a sequential model
+    model = Sequential()
+    model.add(Dense(8, input_dim=len(X[0, :]), activation='relu', kernel_initializer=kernel_init))
+    model.add(Dense(4, activation='relu', kernel_initializer=kernel_init))
+    model.add(Dense(1, activation='relu', kernel_initializer=kernel_init))
+    model.compile(loss=MeanSquaredError(), optimizer='adam')
+    return model
+
 
 def train_test_models(num_imgs, n_slic, graph_type, similarity_measure):
     num_cores = -1
@@ -296,11 +307,7 @@ def train_test_models(num_imgs, n_slic, graph_type, similarity_measure):
                           # ('Ridge', Ridge(alpha=5)),
                           ('SGDR', SGDRegressor(loss='epsilon_insensitive', penalty='elasticnet', alpha=0.0001, verbose=1, random_state=1, learning_rate='invscaling', early_stopping=True, validation_fraction=0.3, n_iter_no_change=10)),
                           # ('SVR', LinearSVR(epsilon=0.0, loss='epsilon_insensitive', verbose=1, random_state=1)),
-                          ('MLPR', Regressor(layers=[Layer(type="Rectifier", units=128),
-                                                     Layer(type="Rectifier", units=64),
-                                                     Layer(type="Rectifier", units=32),
-                                                     Layer(type="Rectifier", units=16),
-                                                     Layer(type="Rectifier", units=8),
+                          ('MLPR', Regressor(layers=[Layer(type="Rectifier", units=8),
                                                      Layer(type="Rectifier", units=4),
                                                      Layer(type="Linear", units=1)],
                                                       random_state=1,
@@ -311,7 +318,7 @@ def train_test_models(num_imgs, n_slic, graph_type, similarity_measure):
                                                       valid_set=(X_val, y_val), #minmax_scale()
                                                       loss_type='mse',
                                                       verbose=True)),
-                          ('MLPR_tf', BuildModel(X_train))
+                          ('MLPR_tf', SmallModel(X_train))
                           ]
 
             outdir_models = source_dir+'../../../data/models/' + \
@@ -342,12 +349,21 @@ def train_test_models(num_imgs, n_slic, graph_type, similarity_measure):
                 if name == 'MLPR_tf':
                     print(regressor.summary())
 
-                    es = EarlyStopping(monitor='loss', mode='min', verbose=0, patience=20, min_delta=1E-4)
-                    mc = ModelCheckpoint(outdir_models + name + '.h5', monitor='loss', mode='min', verbose=0, save_best_only=True)
+                    es = EarlyStopping(monitor='val_loss', mode='min', verbose=0, patience=20, min_delta=1E-4, restore_best_weights=True)
+                    mc = ModelCheckpoint(outdir_models + name + '.h5', monitor='val_loss', mode='min', verbose=0, save_best_only=True)
                     # fit_params = {name + '__callbacks': [es, mc]}
                     # reg.fit(X_train, y_train, **fit_params)
-                    regressor.fit(x=X_train, y=y_train, batch_size=int(len(X_train)/num_imgs), epochs=300, verbose=1, callbacks=[es, mc],
+                    history = regressor.fit(x=X_train, y=y_train, batch_size=int(len(X_train)/num_imgs), epochs=300, verbose=1, callbacks=[es, mc],
                              validation_data=(X_val, y_val), shuffle=True, sample_weight=None)
+
+                    # summarize history for loss
+                    plt.plot(history.history['loss'])
+                    plt.plot(history.history['val_loss'])
+                    plt.title('model loss')
+                    plt.ylabel('loss')
+                    plt.xlabel('epoch')
+                    plt.legend(['train', 'validation'], loc='upper left')
+                    plt.savefig(outdir + 'mlp_model_loss.png')
 
                     predicted_gradients = Parallel(n_jobs=1)(
                         delayed(predicted_gradient_computation)(im_file, img, regions_slic, graph_raw,
@@ -391,7 +407,7 @@ def train_test_models(num_imgs, n_slic, graph_type, similarity_measure):
 if __name__ == '__main__':
 
     num_imgs = 7
-    n_slic = 500 * 2
+    n_slic = 500 * 4
 
     # Graph function parameters
     graph_type = 'rag'  # Choose: 'complete', 'knn', 'rag', 'eps'
