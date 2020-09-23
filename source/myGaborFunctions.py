@@ -97,7 +97,7 @@ def applyGabor_filter(image, filtr, resp_type, smooth, morph_opening, se_z):
         resp_opened = resp_1
 
     if smooth:
-        sigma_s = 1. * filtr[1].get('sigma_x')
+        sigma_s = 2. * filtr[1].get('sigma_x')
 
         if np.iscomplexobj(resp_1):
             resp_smth = np.copy(resp_1)
