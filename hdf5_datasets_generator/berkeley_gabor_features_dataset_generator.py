@@ -94,8 +94,8 @@ def get_gabor_features(img_complex, gabor_filters, r_type, gsmooth, opn, selem_s
         delayed(applyGabor_filterbank)(img_channel, gabor_filters, resp_type=r_type, smooth=gsmooth,
                                        morph_opening=opn, se_z=selem_size) for img_channel in img_complex))
 
-    g_responses_norm = filter_responses
-    # g_responses_norm = normalize_img(filter_responses, rows, cols)
+    # g_responses_norm = filter_responses
+    g_responses_norm = normalize_img(filter_responses, rows, cols)
     # print(np.sum(g_responses_norm**2) / (rows*cols))
 
     g_features = []
