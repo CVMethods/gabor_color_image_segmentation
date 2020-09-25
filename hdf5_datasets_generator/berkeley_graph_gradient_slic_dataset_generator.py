@@ -189,10 +189,8 @@ def generate_h5_graph_gradients_dataset(num_imgs, n_slic, graph_type, similarity
     print('Reading hdf5 image data set time: %.2fs' % (t1 - t0))
 
     ''' Computing Graphs for all images'''
-    kneighbors = 8
-    radius = 10
     all_raw_graphs = Parallel(n_jobs=num_cores)(
-        delayed(get_graph)(img, regions_slic, graph_type, kneighbors, radius) for img, regions_slic in zip(images, superpixels))
+        delayed(get_graph)(img, regions_slic, graph_type) for img, regions_slic in zip(images, superpixels))
 
 
     ##############################################################################
@@ -286,10 +284,10 @@ def generate_h5_graph_gradients_dataset(num_imgs, n_slic, graph_type, similarity
 if __name__ == '__main__':
     num_imgs = 7
     # Superpixels function parameters
-    n_slic = 500 * 4
+    n_slic = 100 * 2
 
     # Graph function parameters
-    graph_type = 'rag'  # Choose: 'complete', 'knn', 'rag', 'eps'
+    graph_type = '4nn'  # Choose: 'complete', 'knn', 'rag', 'keps' (k defines the number of neighbors or the radius)
 
     # Graph distance parameters
     method = 'OT'  # Choose: 'OT' for Earth Movers Distance or 'KL' for Kullback-Leiber divergence

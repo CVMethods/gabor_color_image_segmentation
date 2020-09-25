@@ -176,12 +176,10 @@ if __name__ == '__main__':
 
     ''' Computing Graphs for test set images'''
     # Graph function parameters
-    graph_type = 'knn'  # Choose: 'complete', 'knn', 'rag'
-    kneighbors = 8
-    radius = 10
+    graph_type = '8nn'  # Choose: 'complete', 'knn', 'rag', 'keps' (k defines the number of neighbors or the radius)
 
     raw_graphs = Parallel(n_jobs=num_cores)(
-        delayed(get_graph)(img, regions_slic, graph_type, kneighbors, radius) for img, regions_slic in
+        delayed(get_graph)(img, regions_slic, graph_type) for img, regions_slic in
         zip(images, superpixels))
 
     # Segmentation parameters

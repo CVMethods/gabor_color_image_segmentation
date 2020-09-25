@@ -103,21 +103,23 @@ def get_pixel_graph(neighbors, img_shape):
     return edges_index, np.array(neighbor_edges)
 
 
-def get_graph(img, regions, graph_type, neighbors, radius):
+def get_graph(img, regions, graph_type):
 
-    if graph_type == 'rag':
+    if graph_type.endswith('rag'):
         graph = rag_networkx(regions)
         graph = set_node_edge_attr(graph, img, regions)
 
-    if graph_type == 'complete':
+    if graph_type.endswith('complete'):
         graph = graph_complete_networkx(regions)
         graph = set_node_edge_attr(graph, img, regions)
 
-    if graph_type == 'knn':
+    if graph_type.endswith('nn'):
+        neighbors = int("".join(list(graph_type)[:-2]))
         graph = graph_knn(regions, neighbors)
         graph = set_node_edge_attr(graph, img, regions)
 
-    if graph_type == 'eps':
+    if graph_type.endswith('eps'):
+       radius = int("".join(list(graph_type)[:-3]))
        graph = graph_epsilon(regions, radius)
        graph = set_node_edge_attr(graph, img, regions)
 

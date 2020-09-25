@@ -81,10 +81,8 @@ def generate_imgcontours_from_graphs(num_imgs, n_slic, graph_type, similarity_me
         superpixels = superpixels[test_indices]
 
     ''' Computing Graphs for test set images'''
-    kneighbors = 8
-    radius = 10
     raw_graphs = Parallel(n_jobs=num_cores)(
-        delayed(get_graph)(img, regions_slic, graph_type, kneighbors, radius) for img, regions_slic in
+        delayed(get_graph)(img, regions_slic, graph_type) for img, regions_slic in
         zip(images, superpixels))
 
     if gradients_dir == 'gradients':
@@ -161,7 +159,7 @@ if __name__ == '__main__':
     n_slic = 500 * 2
 
     # Graph function parameters
-    graph_type = 'rag'  # Choose: 'complete', 'knn', 'rag', 'eps'
+    graph_type = 'rag'  # Choose: 'complete', 'knn', 'rag', 'keps' (k defines the number of neighbors or the radius)
 
     # Distance parameter
     similarity_measure = 'OT'  # Choose: 'OT' for Earth Movers Distance or 'KL' for Kullback-Leiber divergence
