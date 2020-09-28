@@ -191,3 +191,22 @@ def graph2gradient(img, rag, weights, regions):
         img_grad[cnt] = np.maximum(img_grad[cnt], rag[e[0]][e[1]]['weight'])
 
     return img_grad
+
+
+def get_edge_weight_edges(rag, graph_type):
+    neighbors = int("".join(list(graph_type)[:-2]))
+    min_num_edges = (neighbors - 1) * 2
+    weights_edges_neighbors = []
+    for e in rag.edges():
+        edges_e = list(nx.edges(rag, e))
+        ind = edges_e.index(e)
+        edges_e.pop(ind)
+        edge_weight_edges = []
+        # edge_weight_edges.append(rag[e[0]][e[1]]['weight'])
+
+        for ee in edges_e[0:min_num_edges]:
+            edge_weight_edges.append(rag[ee[0]][ee[1]]['weight'])
+
+        weights_edges_neighbors.append(rag[e[0]][e[1]]['weight']*hmean(edge_weight_edges))
+
+    return np.array(weights_edges_neighbors)

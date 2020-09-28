@@ -9,9 +9,9 @@ from slic_level_contours.supervised_graph_gradient.test_learning_models import *
 from slic_level_contours.slic_graph_gradient_to_img_contours import *
 
 
-num_imgs = 500
+num_imgs = 7
 
-periods = [(2., 45.)]  #(2., 25.),, (2., 20.), (4., 45.), (4., 20.)
+periods = [(2., 25.)]  #(2., 25.),, (2., 20.), (4., 45.), (4., 20.)
 bandwidths = [(1., 45)]  #, (1.0, 45), (0.7, 30)
 crossing_points = [(0.9, 0.9)]  #(0.65, 0.65),
 deviations = [3.]
@@ -19,7 +19,7 @@ deviations = [3.]
 n_slic = 500 * 4
 
 # Graph function parameters
-graph_type = 'rag'  # Choose: 'complete', 'knn', 'rag', 'eps'
+graph_type = '8nn'  # Choose: 'complete', 'knn', 'rag', 'eps'
 
 # Distance parameter
 similarity_measure = 'OT'  # Choose: 'OT' for Earth Movers Distance or 'KL' for Kullback-Leiber divergence

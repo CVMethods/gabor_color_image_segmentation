@@ -152,6 +152,7 @@ def BuildModel(X):
     model.compile(loss=MeanSquaredError(), optimizer='adam')
     return model
 
+
 def SmallModel(X):
     kernel_init = 'normal'
 
@@ -229,17 +230,35 @@ def train_test_models(num_imgs, n_slic, graph_type, similarity_measure):
                 delayed(np.reshape)(gradients, (shape[0], shape[1])) for gradients, shape in zip(gradient_vectors, gradient_shapes))
 
             training_dataset = []
+            validation_dataset = []
             for ii in range(len(all_imgs_gradients)):
-                if img_subdirs[ii] == 'train':  # Need to change the name of directory to add the gradients to training dataset
+                if img_subdirs[ii] == 'train':
                     training_dataset.extend(all_imgs_gradients[ii])
+                if img_subdirs[ii] == 'val':
+                    validation_dataset.extend(all_imgs_gradients[ii])
 
             training_dataset = np.array(training_dataset)
+            validation_dataset = np.array(validation_dataset)
+
+            # if graph_type.endswith('nn'):
+            #     neighbors = int("".join(list(graph_type)[:-2]))
+            #     num_edges = (2 * neighbors) - 1
+            #     X_train = training_dataset[:, :num_edges*3]
+            #     y_train = training_dataset[:, num_edges*3:]
+            #     X_val = validation_dataset[:, :num_edges*3]
+            #     y_val = validation_dataset[:, num_edges*3:]
+            #
+            # else:
             X_train = training_dataset[:, :-1]
             y_train = training_dataset[:, -1]
 
+            X_val = validation_dataset[:, :-1]
+            y_val = validation_dataset[:, -1]
+
             X_train, y_train = balance_classes(X_train, y_train)
+            X_val, y_val = balance_classes(X_val, y_val)
 
-
+            batch_sz = int(len(X_train)/(num_imgs*2))
             # y_train_balanced = compute_sample_weight('balanced', y_train)
             # class_weights = compute_class_weight('balanced', np.unique(y_train), y_train)
             # plt.figure()
@@ -281,18 +300,7 @@ def train_test_models(num_imgs, n_slic, graph_type, similarity_measure):
             # plt.show(block=False)
             # pdb.set_trace()
 
-            validation_dataset = []
-            for ii in range(len(all_imgs_gradients)):
-                if img_subdirs[ii] == 'val':  # Need to change the name of directory to add the gradients to training dataset
-                    validation_dataset.extend(all_imgs_gradients[ii])
-
-            validation_dataset = np.array(validation_dataset)
-            X_val = validation_dataset[:, :-1]
-            y_val = validation_dataset[:, -1]
-
-            X_val, y_val = balance_classes(X_val, y_val)
-
-            scaler = MinMaxScaler()
+            scaler = MinMaxScaler()  # StandarScaler()  #
             scaler.fit(X_train)
             X_train = scaler.transform(X_train)
             X_val = scaler.transform(X_val)
@@ -310,9 +318,10 @@ def train_test_models(num_imgs, n_slic, graph_type, similarity_measure):
                                                      Layer(type="Linear", units=1)],
                                                       random_state=1,
                                                       learning_rule='sgd',
-                                                      learning_rate=0.001,
-                                                      n_iter=300,
-                                                      batch_size=int(len(X_train)/num_imgs),
+                                                      learning_rate=0.01,
+                                                      batch_size=batch_sz,
+                                                      n_iter=100,
+                                                      n_stable=4,
                                                       valid_set=(X_val, y_val), #minmax_scale()
                                                       loss_type='mse',
                                                       verbose=True)),
@@ -347,11 +356,11 @@ def train_test_models(num_imgs, n_slic, graph_type, similarity_measure):
                 if name == 'MLPR_tf':
                     print(regressor.summary())
 
-                    es = EarlyStopping(monitor='val_loss', mode='min', verbose=0, patience=20, min_delta=1E-4, restore_best_weights=True)
+                    es = EarlyStopping(monitor='val_loss', mode='min', verbose=0, patience=4, min_delta=1E-4, restore_best_weights=True)
                     mc = ModelCheckpoint(outdir_models + name + '.h5', monitor='val_loss', mode='min', verbose=0, save_best_only=True)
                     # fit_params = {name + '__callbacks': [es, mc]}
                     # reg.fit(X_train, y_train, **fit_params)
-                    history = regressor.fit(x=X_train, y=y_train, batch_size=int(len(X_train)/num_imgs), epochs=300, verbose=1, callbacks=[es, mc],
+                    history = regressor.fit(x=X_train, y=y_train, batch_size=batch_sz, epochs=300, verbose=1, callbacks=[es, mc],
                              validation_data=(X_val, y_val), shuffle=True, sample_weight=None)
 
                     # summarize history for loss
@@ -405,10 +414,10 @@ def train_test_models(num_imgs, n_slic, graph_type, similarity_measure):
 if __name__ == '__main__':
 
     num_imgs = 7
-    n_slic = 500 * 4
+    n_slic = 100 * 2
 
     # Graph function parameters
-    graph_type = 'rag'  # Choose: 'complete', 'knn', 'rag', 'keps' (k defines the number of neighbors or the radius)
+    graph_type = '4nn'  # Choose: 'complete', 'knn', 'rag', 'keps' (k defines the number of neighbors or the radius)
 
     # Distance parameter
     similarity_measure = 'OT'  # Choose: 'OT' for Earth Movers Distance or 'KL' for Kullback-Leiber divergence

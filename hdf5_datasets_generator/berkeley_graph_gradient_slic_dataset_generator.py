@@ -119,7 +119,13 @@ def perceptual_gradient_computation(im_file, img, regions_slic, graph_type, grap
     for i_edge, e in enumerate(list(graph_weighted_gt.edges)):
         graph_weighted_gt[e[0]][e[1]]['weight'] = weights_gt[i_edge]
 
+    # if graph_type.endswith('nn'):
+    #     weights_lum_neighbors = get_edge_weight_edges(graph_weighted_lum, graph_type)
+    #     weights_cr_neighbors = get_edge_weight_edges(graph_weighted_cr, graph_type)
+    #     weights_ci_neighbors = get_edge_weight_edges(graph_weighted_ci, graph_type)
+
     stacked_gradients = np.column_stack((weights_lum, weights_cr, weights_ci, weights_gt))
+    # stacked_gradients = np.column_stack((weights_lum_neighbors, weights_cr_neighbors, weights_ci_neighbors, weights_gt))
 
     ##############################################################################
     '''Visualization Section: show and/or save images'''
