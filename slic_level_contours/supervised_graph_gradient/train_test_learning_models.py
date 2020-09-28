@@ -258,7 +258,7 @@ def train_test_models(num_imgs, n_slic, graph_type, similarity_measure):
             X_train, y_train = balance_classes(X_train, y_train)
             X_val, y_val = balance_classes(X_val, y_val)
 
-            batch_sz = int(len(X_train)/(num_imgs*2))
+            batch_sz = int(len(X_train)/(num_imgs))
             # y_train_balanced = compute_sample_weight('balanced', y_train)
             # class_weights = compute_class_weight('balanced', np.unique(y_train), y_train)
             # plt.figure()
@@ -300,7 +300,7 @@ def train_test_models(num_imgs, n_slic, graph_type, similarity_measure):
             # plt.show(block=False)
             # pdb.set_trace()
 
-            scaler = MinMaxScaler()  # StandarScaler()  #
+            scaler = StandardScaler()  # MinMaxScaler()  #
             scaler.fit(X_train)
             X_train = scaler.transform(X_train)
             X_val = scaler.transform(X_val)
@@ -313,18 +313,18 @@ def train_test_models(num_imgs, n_slic, graph_type, similarity_measure):
                           # ('Ridge', Ridge(alpha=5)),
                           ('SGDR', SGDRegressor(loss='epsilon_insensitive', penalty='elasticnet', alpha=0.0001, verbose=1, random_state=1, learning_rate='invscaling', early_stopping=True, validation_fraction=0.3, n_iter_no_change=10)),
                           # ('SVR', LinearSVR(epsilon=0.0, loss='epsilon_insensitive', verbose=1, random_state=1)),
-                          ('MLPR', Regressor(layers=[Layer(type="Rectifier", units=8),
-                                                     Layer(type="Rectifier", units=4),
-                                                     Layer(type="Linear", units=1)],
-                                                      random_state=1,
-                                                      learning_rule='sgd',
-                                                      learning_rate=0.01,
-                                                      batch_size=batch_sz,
-                                                      n_iter=100,
-                                                      n_stable=4,
-                                                      valid_set=(X_val, y_val), #minmax_scale()
-                                                      loss_type='mse',
-                                                      verbose=True)),
+                          # ('MLPR', Regressor(layers=[Layer(type="Rectifier", units=8),
+                          #                            Layer(type="Rectifier", units=4),
+                          #                            Layer(type="Linear", units=1)],
+                          #                             random_state=1,
+                          #                             learning_rule='sgd',
+                          #                             learning_rate=0.01,
+                          #                             batch_size=batch_sz,
+                          #                             n_iter=100,
+                          #                             n_stable=4,
+                          #                             valid_set=(X_val, y_val), #minmax_scale()
+                          #                             loss_type='mse',
+                          #                             verbose=True)),
                           ('MLPR_tf', SmallModel(X_train))
                           ]
 
