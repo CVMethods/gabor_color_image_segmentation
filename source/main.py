@@ -10,6 +10,7 @@ from slic_level_contours.slic_graph_gradient_to_img_contours import *
 from slic_level_segmentation.threshold_graphcut_hdf5_dataset import *
 from slic_level_segmentation.spectral_clustering_hdf5_dataset import *
 from slic_level_segmentation.normalized_graphcut_hdf5_dataset import *
+from slic_level_segmentation.affinity_propagation_hdf5_dataset import *
 
 
 num_imgs = 7
@@ -19,7 +20,7 @@ bandwidths = [(1., 45)]  #, (1.0, 45), (0.7, 30)
 crossing_points = [(0.9, 0.9)]  #(0.65, 0.65),
 deviations = [3.]
 
-n_slic = 500 * 4
+n_slic = 500 * 5
 
 # Graph function parameters
 graph_type = '8nn'  # Choose: 'complete', 'knn', 'rag', 'eps'
@@ -38,7 +39,7 @@ bsd_subset = 'test'
 generate_imgcontours_from_graphs(num_imgs, n_slic, graph_type, similarity_measure, gradients_dir, bsd_subset)
 
 gradients_dir = 'gradients'
-bsd_subset = 'all'
+bsd_subset = 'test'
 generate_imgcontours_from_graphs(num_imgs, n_slic, graph_type, similarity_measure, gradients_dir, bsd_subset)
 
 # Segmentation parameters
@@ -58,8 +59,8 @@ gradients_dir = 'gradients'
 bsd_subset = 'test'
 
 threshold_graphcut_segmentation(num_imgs, n_slic, graph_type, similarity_measure, gradients_dir, bsd_subset, graph_mode, law_type, cut_level)
-
-# Segmentation parameters
+#
+# # Segmentation parameters
 graph_mode = 'complete'  # Choose: 'complete' to use whole graph or 'mst' to use Minimum Spanning Tree
 aff_norm_method = 'global'  # Choose: 'global' or 'local'
 num_clusters = 'min'
@@ -70,8 +71,6 @@ spectral_clustering_segmentation(num_imgs, n_slic, graph_type, similarity_measur
                                 graph_mode, aff_norm_method, num_clusters)
 
 # Segmentation parameters
-graph_mode = 'complete'  # Choose: 'complete' to use whole graph or 'mst' to use Minimum Spanning Tree
-aff_norm_method = 'global'  # Choose: 'global' or 'local'
 num_clusters = 'min'
 gradients_dir = 'gradients'
 bsd_subset = 'test'
@@ -81,8 +80,6 @@ spectral_clustering_segmentation(num_imgs, n_slic, graph_type, similarity_measur
 
 
 # Segmentation parameters
-graph_mode = 'complete'  # Choose: 'complete' to use whole graph or 'mst' to use Minimum Spanning Tree
-aff_norm_method = 'global'  # Choose: 'global' or 'local'
 gradients_dir = 'predicted_gradients'
 bsd_subset = 'test'
 
@@ -90,10 +87,22 @@ normalized_graphcut_segmentation(num_imgs, n_slic, graph_type, similarity_measur
                                 graph_mode, aff_norm_method)
 
 # Segmentation parameters
-graph_mode = 'complete'  # Choose: 'complete' to use whole graph or 'mst' to use Minimum Spanning Tree
-aff_norm_method = 'global'  # Choose: 'global' or 'local'
 gradients_dir = 'gradients'
 bsd_subset = 'test'
 
 normalized_graphcut_segmentation(num_imgs, n_slic, graph_type, similarity_measure, gradients_dir, bsd_subset,
                                 graph_mode, aff_norm_method)
+
+
+# # Segmentation parameters
+# gradients_dir = 'predicted_gradients'
+# bsd_subset = 'test'
+# affinity_propagation_segmentation(num_imgs, n_slic, graph_type, similarity_measure, gradients_dir, bsd_subset,
+#                                       graph_mode, aff_norm_method)
+#
+#
+# # Segmentation parameters
+# gradients_dir = 'gradients'
+# bsd_subset = 'test'
+# affinity_propagation_segmentation(num_imgs, n_slic, graph_type, similarity_measure, gradients_dir, bsd_subset,
+#                                       graph_mode, aff_norm_method)

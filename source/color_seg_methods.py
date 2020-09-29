@@ -10,7 +10,7 @@ from mpl_toolkits.mplot3d import Axes3D
 from matplotlib import colors
 from scipy.stats import gamma, lognorm
 from skimage.future import graph
-from sklearn.cluster import SpectralClustering, KMeans
+from sklearn.cluster import SpectralClustering, KMeans, AffinityPropagation
 # from gap import gap
 
 
@@ -185,8 +185,7 @@ def optimalK(data, nrefs, maxClusters):
 
 def global_sigma(distances, n_points):
     # return max(distances) / (n_points ** (1/np.float(3)))  # 3 is the dimension data (3d color space)
-    # pdb.set_trace()
-    return max(distances) / (n_points ** (1/np.float(3)))  # 3 is the dimension data (3d color space)
+    return max(distances) * (n_points ** (1/np.float(5)))  # 3 is the dimension data (3d color space)
 
 # def global_sigma(rag):
 #     aff_matrix = nx.to_numpy_array(rag, weight='weight')
@@ -220,13 +219,19 @@ def local_sigma(rag):
 def distance_matrix_normalization(rag, weights, sigma_method, regions):
     if sigma_method == 'global':
         sigma = global_sigma(weights, len(np.unique(regions)))
+        # sigma = 1.5
+        eps = 1e-6
         # sigma = global_sigma(rag)
         print('sigma:', sigma)
 
         adj_mat = nx.adjacency_matrix(rag, weight='weight')
         aff_mat = adj_mat.copy()
-        # aff_mat.data = np.exp(- np.square(adj_mat.data) * sigma)
-        aff_mat.data = np.power(np.exp(- adj_mat.data / (sigma / 2)), 3)  # 3 is the dimension data (3d color space)
+        # aff_mat.data = np.exp(- np.square(adj_mat.data) * sigma) + eps
+        # aff_mat.data = np.exp(- (sigma * aff_mat.data) /  aff_mat.data.std()) + eps
+        aff_mat.data = np.exp(- sigma * aff_mat.data**2 / aff_mat.data.std())
+        # aff_mat.data = (aff_mat.data - min(aff_mat.data)) / (max(aff_mat.data) - min(aff_mat.data))
+
+        # aff_mat.data = np.power(np.exp(- adj_mat.data / (sigma / 2)), 3)  # 3 is the dimension data (3d color space)
 
     elif sigma_method == 'local':
 

@@ -18,7 +18,7 @@ def get_normalized_cuts_metrics(im_file, img, regions_slic, graph_raw, perceptua
     if gradients_dir == 'gradients':
         perceptual_gradients = np.sum(perceptual_gradients[:, :-1], axis=-1)
 
-    perceptual_gradients = (perceptual_gradients - min(perceptual_gradients)) / (max(perceptual_gradients) - min(perceptual_gradients))
+    # perceptual_gradients = (perceptual_gradients - min(perceptual_gradients)) / (max(perceptual_gradients) - min(perceptual_gradients))
 
     for i_edge, e in enumerate(list(graph_raw.edges)):
         graph_weighted[e[0]][e[1]]['weight'] = perceptual_gradients[i_edge]
@@ -33,6 +33,8 @@ def get_normalized_cuts_metrics(im_file, img, regions_slic, graph_raw, perceptua
 
     '''  Performing Normalized cut on weighted graph  '''
     aff_matrix, graph_normalized = distance_matrix_normalization(graph_weighted, weights, aff_norm_method, regions_slic)
+    weights_normalized = nx.get_edge_attributes(graph_normalized, 'weight').values()
+
 
     t0 = time.time()
     regions_ncut = graph.cut_normalized(regions_slic, graph_normalized)
@@ -67,8 +69,8 @@ def get_normalized_cuts_metrics(im_file, img, regions_slic, graph_raw, perceptua
     # Show Graph with updated weights
     fig_title = graph_mode + ' Weighted Graph'
     img_name = '_weighted_' + graph_mode + 'graph'
-    colbar_lim = (min(weights), max(weights))
-    show_and_save_imgraph(img, regions_slic, graph_weighted, fig_title, img_name, fontsize, save_fig, output_dir, file_name,
+    colbar_lim = (min(weights_normalized), max(weights_normalized))
+    show_and_save_imgraph(img, regions_slic, graph_normalized, fig_title, img_name, fontsize, save_fig, output_dir, file_name,
                           colbar_lim)
 
     fig_title = 'Affinity Matrix'
@@ -411,10 +413,10 @@ def normalized_graphcut_segmentation(num_imgs, n_slic, graph_type, similarity_me
 if __name__ == '__main__':
     num_imgs = 7
 
-    n_slic = 500 * 4
+    n_slic = 500 * 2
 
     # Graph function parameters
-    graph_type = '8nn'  # Choose: 'complete', 'knn', 'rag', 'keps' (k defines the number of neighbors or the radius)
+    graph_type = 'rag'  # Choose: 'complete', 'knn', 'rag', 'keps' (k defines the number of neighbors or the radius)
 
     # Distance parameter
     similarity_measure = 'OT'  # Choose: 'OT' for Earth Movers Distance or 'KL' for Kullback-Leiber divergence

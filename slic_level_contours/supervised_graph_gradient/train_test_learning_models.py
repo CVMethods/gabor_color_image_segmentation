@@ -158,7 +158,8 @@ def SmallModel(X):
 
     # it is a sequential model
     model = Sequential()
-    model.add(Dense(8, input_dim=len(X[0, :]), activation='relu', kernel_initializer=kernel_init))
+    model.add(Dense(16, input_dim=len(X[0, :]), activation='relu', kernel_initializer=kernel_init))
+    model.add(Dense(8, activation='relu', kernel_initializer=kernel_init))
     model.add(Dense(4, activation='relu', kernel_initializer=kernel_init))
     model.add(Dense(1, activation='relu', kernel_initializer=kernel_init))
     model.compile(loss=MeanSquaredError(), optimizer='adam')
@@ -258,7 +259,7 @@ def train_test_models(num_imgs, n_slic, graph_type, similarity_measure):
             X_train, y_train = balance_classes(X_train, y_train)
             X_val, y_val = balance_classes(X_val, y_val)
 
-            batch_sz = int(len(X_train)/(num_imgs))
+            batch_sz = int(len(X_train)/(num_imgs-len(test_indices)))
             # y_train_balanced = compute_sample_weight('balanced', y_train)
             # class_weights = compute_class_weight('balanced', np.unique(y_train), y_train)
             # plt.figure()
@@ -356,7 +357,7 @@ def train_test_models(num_imgs, n_slic, graph_type, similarity_measure):
                 if name == 'MLPR_tf':
                     print(regressor.summary())
 
-                    es = EarlyStopping(monitor='val_loss', mode='min', verbose=0, patience=4, min_delta=1E-4, restore_best_weights=True)
+                    es = EarlyStopping(monitor='val_loss', mode='min', verbose=0, patience=10, min_delta=1E-4, restore_best_weights=True)
                     mc = ModelCheckpoint(outdir_models + name + '.h5', monitor='val_loss', mode='min', verbose=0, save_best_only=True)
                     # fit_params = {name + '__callbacks': [es, mc]}
                     # reg.fit(X_train, y_train, **fit_params)

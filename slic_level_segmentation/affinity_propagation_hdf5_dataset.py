@@ -10,7 +10,7 @@ from source.plot_save_figures import *
 from source.color_seg_methods import *
 
 
-def get_spectral_clustering_metrics(im_file, img, regions_slic, graph_raw, perceptual_gradients, graph_mode, aff_norm_method, num_clusters, gradients_dir, outdir):
+def get_affinity_prop_metrics(im_file, img, regions_slic, graph_raw, perceptual_gradients, graph_mode, aff_norm_method, gradients_dir, outdir):
     print('##############################', im_file, '##############################')
 
     graph_weighted = graph_raw.copy()
@@ -31,40 +31,28 @@ def get_spectral_clustering_metrics(im_file, img, regions_slic, graph_raw, perce
         weights = nx.get_edge_attributes(graph_mst, 'weight').values()
         graph_weighted = graph_mst
 
-    ''' Getting number of cluster based on ground truth segmentations '''
-    groundtruth_segments = np.array(get_segment_from_filename(im_file))
-    n_clusters = get_num_segments(groundtruth_segments)
-
-    if num_clusters == 'max':
-        k = int(n_clusters[0])
-    elif num_clusters == 'min':
-        k = int(n_clusters[1])
-    elif num_clusters == 'mean':
-        k = int(n_clusters[2])
-    elif num_clusters == 'hmean':
-        k = int(n_clusters[3])
-
-    ''' Performing Spectral Clustering on weighted graph '''
+    '''  Performing Normalized cut on weighted graph  '''
     aff_matrix, graph_normalized = distance_matrix_normalization(graph_weighted, weights, aff_norm_method, regions_slic)
     weights_normalized = nx.get_edge_attributes(graph_normalized, 'weight').values()
 
     t0 = time.time()
-    segmentation = SpectralClustering(n_clusters=15, assign_labels='discretize', affinity='precomputed',
-                                      n_init=100, n_jobs=-1).fit(aff_matrix)
+    segmentation = AffinityPropagation(damping=0.5, max_iter=400, convergence_iter=30, copy=True, preference=None,
+                                       affinity='precomputed', verbose=True, random_state=0).fit(aff_matrix.toarray())
     t1 = time.time()
     print(' Computing time: %.2fs' % (t1 - t0))
-    regions_spec = get_sgmnt_regions(graph_weighted, segmentation.labels_, regions_slic)
+    regions_affprop = get_sgmnt_regions(graph_weighted, segmentation.labels_, regions_slic)
 
     ''' Evaluation of segmentation'''
-    if len(np.unique(regions_spec)) == 1:
+    groundtruth_segments = np.array(get_segment_from_filename(im_file))
+
+    if len(np.unique(regions_affprop)) == 1:
         # metrics_values.append((0., 0.))
         metrics_vals = (0., 0.)
     else:
-        m = metrics(None, regions_spec, groundtruth_segments)
+        m = metrics(None, regions_affprop, groundtruth_segments)
         m.set_metrics()
         # m.display_metrics()
         vals = m.get_metrics()
-        # metrics_values.append((vals['recall'], vals['precision']))
         metrics_vals = (vals['recall'], vals['precision'])
 
     ##############################################################################
@@ -96,16 +84,16 @@ def get_spectral_clustering_metrics(im_file, img, regions_slic, graph_raw, perce
     if not os.path.exists(output_dir):
         os.makedirs(output_dir)
 
-    fig_title = 'Spectral Clustering Result k=%d' % k
+    fig_title = 'Affinity propagation Result '
     fig_label = (metrics_vals[0], metrics_vals[1], (t1 - t0))
-    img_name = '_spec_result'
-    show_and_save_result(img, regions_spec, fig_title, fig_label, img_name, fontsize, save_fig, output_dir, file_name)
+    img_name = '_ncut_result'
+    show_and_save_result(img, regions_affprop, fig_title, fig_label, img_name, fontsize, save_fig, output_dir, file_name)
 
     return metrics_vals
 
 
-def spectral_clustering_segmentation(num_imgs, n_slic, graph_type, similarity_measure, gradients_dir, bsd_subset,
-                                    graph_mode, aff_norm_method, num_clusters):
+def affinity_propagation_segmentation(num_imgs, n_slic, graph_type, similarity_measure, gradients_dir, bsd_subset,
+                                      graph_mode, aff_norm_method):
     num_cores = -1
 
     hdf5_indir_im = Path('../../data/hdf5_datasets/' + str(num_imgs) + 'images/' + 'images')
@@ -160,7 +148,7 @@ def spectral_clustering_segmentation(num_imgs, n_slic, graph_type, similarity_me
         all_precisions = []
         all_recalls = []
         for gradients_input_file in input_files:
-            with h5py.File(hdf5_indir_grad / gradients_input_file / 'gradients.h5', "r+") as gradients_file:
+            with h5py.File(hdf5_indir_grad / gradients_input_file/ 'gradients.h5', "r+") as gradients_file:
                 print('Reading Berkeley features data set')
                 print('File name: ', gradients_input_file)
                 t0 = time.time()
@@ -183,12 +171,12 @@ def spectral_clustering_segmentation(num_imgs, n_slic, graph_type, similarity_me
                          'slic_level_segmentation/' + \
                          (str(n_slic) + '_slic_' + graph_type + '_' + similarity_measure) + '/' + \
                          'SimpleSum' + '_' + bsd_subset + '/' + \
-                         'spectral_clustering_' + aff_norm_method + '_norm_' + graph_mode + '_graph/' + \
+                         'affinity_propagation_' + aff_norm_method + '_norm_' + graph_mode + '_graph/' + \
                          gradients_input_file + '/'
 
                 metrics_values = Parallel(n_jobs=num_cores)(
-                    delayed(get_spectral_clustering_metrics)(im_file, img, regions_slic, graph_raw, perceptual_gradients,
-                                                             graph_mode, aff_norm_method, num_clusters, gradients_dir, outdir)
+                    delayed(get_affinity_prop_metrics)(im_file, img, regions_slic, graph_raw, perceptual_gradients,
+                                                       graph_mode, aff_norm_method, gradients_dir, outdir)
                     for im_file, img, regions_slic, graph_raw, perceptual_gradients in
                     zip(img_ids, images, superpixels, raw_graphs, imgs_gradients))
 
@@ -209,7 +197,7 @@ def spectral_clustering_segmentation(num_imgs, n_slic, graph_type, similarity_me
                 plt.figure(dpi=180)
                 plt.plot(np.arange(len(images)) + 1, recall, '-o', c='k', label='recall')
                 plt.plot(np.arange(len(images)) + 1, precision, '-o', c='r', label='precision')
-                plt.title('Spectral clustering P/R histogram')
+                plt.title('Affinity propagation P/R histogram')
                 plt.xlabel(
                     'Rmax: %.3f, Rmin: %.3f, Rmean: %.3f, Rmed: %.3f, Rstd: %.3f \n Pmax: %.3f, Pmin: %.3f, Pmean: %.3f, Pmed: %.3f, Pstd: %.3f ' % (
                         recall.max(), recall.min(), recall.mean(), np.median(recall), recall.std(), precision.max(),
@@ -217,24 +205,24 @@ def spectral_clustering_segmentation(num_imgs, n_slic, graph_type, similarity_me
                 plt.ylim(0, 1.05)
                 plt.legend()
                 plt.grid()
-                plt.savefig(outdir + 'Spectral_clustering_PR_hist.png', bbox_inches='tight')
+                plt.savefig(outdir + 'Affinity_propagation_PR_hist.png', bbox_inches='tight')
 
                 plt.figure(dpi=180)
                 sns.distplot(recall, color='black', label='recall')
                 sns.distplot(precision, color='red', label='precision')
-                plt.title('Spectral clustering P/R density histogram')
+                plt.title('Affinity propagation P/R density histogram')
                 plt.legend()
                 plt.grid()
-                plt.savefig(outdir + 'Spectral_clustering_PR_density_hist.png', bbox_inches='tight')
+                plt.savefig(outdir + 'Affinity_propagation_PR_density_hist.png', bbox_inches='tight')
 
                 plt.figure(dpi=180)
                 ax = plt.gca()
                 ax.boxplot(list([precision, recall]))
-                ax.set_title('Spectral clustering P/R density box plot')
+                ax.set_title('Affinity propagation P/R density box plot')
                 ax.set_xticklabels(['precision', 'recall'])
                 ax.set_xlabel('F-score: %.3f' % np.median(f_score))
                 plt.grid()
-                plt.savefig(outdir + 'Spectral_clustering_PR_boxplot.png', bbox_inches='tight')
+                plt.savefig(outdir + 'Affinity_propagation_PR_boxplot.png', bbox_inches='tight')
 
                 plt.close('all')
 
@@ -243,7 +231,7 @@ def spectral_clustering_segmentation(num_imgs, n_slic, graph_type, similarity_me
                  'slic_level_segmentation/' + \
                  (str(n_slic) + '_slic_' + graph_type + '_' + similarity_measure) + '/' + \
                  'SimpleSum' + '_' + bsd_subset + '/' + \
-                 'spectral_clustering_' + aff_norm_method + '_norm_' + graph_mode + '_graph/'
+                 'affinity_propagation_' + aff_norm_method + '_norm_' + graph_mode + '_graph/'
 
         if not os.path.exists(outdir):
             os.makedirs(outdir)
@@ -255,11 +243,11 @@ def spectral_clustering_segmentation(num_imgs, n_slic, graph_type, similarity_me
         plt.figure(dpi=180)
         ax = plt.gca()
         ax.boxplot(all_f_scores[index].T, vert=False)
-        ax.set_title('Spectral clustering F scores: ' + aff_norm_method + ' norm, ' + graph_mode + ' graph')
+        ax.set_title('Affinity propagation F scores: ' + aff_norm_method + ' norm, ' + graph_mode + ' graph')
         # ax.legend(input_files, fontsize=5, loc='best', bbox_to_anchor=(1, 1))
         ax.set_yticklabels(input_files[index], fontsize=5)
         plt.grid()
-        plt.savefig(outdir + 'Spectral_clustering_Fscores_' + aff_norm_method + '_' + graph_mode + '_boxplot.png',
+        plt.savefig(outdir + 'Affinity_propagation_Fscores_' + aff_norm_method + '_' + graph_mode + '_boxplot.png',
                     bbox_inches='tight')
 
         all_recalls = np.array(all_recalls)
@@ -269,11 +257,11 @@ def spectral_clustering_segmentation(num_imgs, n_slic, graph_type, similarity_me
         plt.figure(dpi=180)
         ax = plt.gca()
         ax.boxplot(all_recalls[index].T, vert=False)
-        ax.set_title('Spectral clustering recall: ' + aff_norm_method + ' norm, ' + graph_mode + ' graph')
+        ax.set_title('Affinity propagation recalls: ' + aff_norm_method + ' norm, ' + graph_mode + ' graph')
         # ax.legend(input_files, fontsize=5, loc='best', bbox_to_anchor=(1, 1))
         ax.set_yticklabels(input_files[index], fontsize=5)
         plt.grid()
-        plt.savefig(outdir + 'Spectral_clustering_recalls_' + aff_norm_method + '_' + graph_mode + '_boxplot.png',
+        plt.savefig(outdir + 'Affinity_propagation_recalls_' + aff_norm_method + '_' + graph_mode + '_boxplot.png',
                     bbox_inches='tight')
 
         all_precisions = np.array(all_precisions)
@@ -283,11 +271,11 @@ def spectral_clustering_segmentation(num_imgs, n_slic, graph_type, similarity_me
         plt.figure(dpi=180)
         ax = plt.gca()
         ax.boxplot(all_precisions[index].T, vert=False)
-        ax.set_title('Spectral clustering precision: ' + aff_norm_method + ' norm, ' + graph_mode + ' graph')
+        ax.set_title('Affinity propagation precisions: ' + aff_norm_method + ' norm, ' + graph_mode + ' graph')
         # ax.legend(input_files, fontsize=5, loc='best', bbox_to_anchor=(1, 1))
         ax.set_yticklabels(input_files[index], fontsize=5)
         plt.grid()
-        plt.savefig(outdir + 'Spectral_clustering_precision_' + aff_norm_method + '_' + graph_mode + '_boxplot.png',
+        plt.savefig(outdir + 'Affinity_propagation_precisions_' + aff_norm_method + '_' + graph_mode + '_boxplot.png',
                     bbox_inches='tight')
 
     if gradients_dir == 'predicted_gradients':
@@ -314,12 +302,12 @@ def spectral_clustering_segmentation(num_imgs, n_slic, graph_type, similarity_me
                              'slic_level_segmentation/' + \
                              (str(n_slic) + '_slic_' + graph_type + '_' + similarity_measure) + '/' + \
                              model_name + '/' + \
-                             'spectral_clustering_' + aff_norm_method + '_norm_' + graph_mode + '_graph/' + \
+                             'affinity_propagation_' + aff_norm_method + '_norm_' + graph_mode + '_graph/' + \
                              gradients_input_file + '/'
 
                     metrics_values = Parallel(n_jobs=num_cores)(
-                        delayed(get_spectral_clustering_metrics)(im_file, img, regions_slic, graph_raw, perceptual_gradients,
-                                                             graph_mode, aff_norm_method, num_clusters, gradients_dir, outdir)
+                        delayed(get_affinity_prop_metrics)(im_file, img, regions_slic, graph_raw, perceptual_gradients,
+                                                           graph_mode, aff_norm_method, gradients_dir, outdir)
                         for im_file, img, regions_slic, graph_raw, perceptual_gradients in
                         zip(img_ids, images, superpixels, raw_graphs, imgs_gradients))
 
@@ -340,7 +328,7 @@ def spectral_clustering_segmentation(num_imgs, n_slic, graph_type, similarity_me
                     plt.figure(dpi=180)
                     plt.plot(np.arange(len(images)) + 1, recall, '-o', c='k', label='recall')
                     plt.plot(np.arange(len(images)) + 1, precision, '-o', c='r', label='precision')
-                    plt.title('Spectral clustering P/R histogram')
+                    plt.title('Affinity propagation P/R histogram')
                     plt.xlabel(
                         'Rmax: %.3f, Rmin: %.3f, Rmean: %.3f, Rmed: %.3f, Rstd: %.3f \n Pmax: %.3f, Pmin: %.3f, Pmean: %.3f, Pmed: %.3f, Pstd: %.3f ' % (
                             recall.max(), recall.min(), recall.mean(), np.median(recall), recall.std(), precision.max(),
@@ -348,24 +336,24 @@ def spectral_clustering_segmentation(num_imgs, n_slic, graph_type, similarity_me
                     plt.ylim(0, 1.05)
                     plt.legend()
                     plt.grid()
-                    plt.savefig(outdir + 'Spectral_clustering_PR_hist.png', bbox_inches='tight')
+                    plt.savefig(outdir + 'Affinity_propagation_PR_hist.png', bbox_inches='tight')
 
                     plt.figure(dpi=180)
                     sns.distplot(recall, color='black', label='recall')
                     sns.distplot(precision, color='red', label='precision')
-                    plt.title('Spectral clustering P/R density histogram')
+                    plt.title('Affinity propagation P/R density histogram')
                     plt.legend()
                     plt.grid()
-                    plt.savefig(outdir + 'Spectral_clustering_PR_density_hist.png', bbox_inches='tight')
+                    plt.savefig(outdir + 'Affinity_propagation_PR_density_hist.png', bbox_inches='tight')
 
                     plt.figure(dpi=180)
                     ax = plt.gca()
                     ax.boxplot(list([precision, recall]))
-                    ax.set_title('Spectral clustering P/R density box plot')
+                    ax.set_title('Affinity propagation P/R density box plot')
                     ax.set_xticklabels(['precision', 'recall'])
                     ax.set_xlabel('F-score: %.3f' % np.median(f_score))
                     plt.grid()
-                    plt.savefig(outdir + 'Spectral_clustering_PR_boxplot.png', bbox_inches='tight')
+                    plt.savefig(outdir + 'Affinity_propagation_PR_boxplot.png', bbox_inches='tight')
 
                     plt.close('all')
 
@@ -374,7 +362,7 @@ def spectral_clustering_segmentation(num_imgs, n_slic, graph_type, similarity_me
                      'slic_level_segmentation/' + \
                      (str(n_slic) + '_slic_' + graph_type + '_' + similarity_measure) + '/' + \
                      model_name + '/' + \
-                     'spectral_clustering_' + aff_norm_method + '_norm_' + graph_mode + '_graph/'
+                     'affinity_propagation_' + aff_norm_method + '_norm_' + graph_mode + '_graph/'
 
             if not os.path.exists(outdir):
                 os.makedirs(outdir)
@@ -386,11 +374,11 @@ def spectral_clustering_segmentation(num_imgs, n_slic, graph_type, similarity_me
             plt.figure(dpi=180)
             ax = plt.gca()
             ax.boxplot(all_f_scores[index].T, vert=False)
-            ax.set_title('Spectral clustering F scores: ' + aff_norm_method + ' norm, ' + graph_mode + ' graph')
+            ax.set_title('Affinity propagation F scores: ' + aff_norm_method + ' norm, ' + graph_mode + ' graph')
             # ax.legend(input_files, fontsize=5, loc='best', bbox_to_anchor=(1, 1))
             ax.set_yticklabels(input_files[index], fontsize=5)
             plt.grid()
-            plt.savefig(outdir + 'Spectral_clustering_Fscores_' + aff_norm_method + '_' + graph_mode + '_boxplot.png',
+            plt.savefig(outdir + 'Affinity_propagation_Fscores_' + aff_norm_method + '_' + graph_mode + '_boxplot.png',
                         bbox_inches='tight')
 
             all_recalls = np.array(all_recalls)
@@ -400,11 +388,11 @@ def spectral_clustering_segmentation(num_imgs, n_slic, graph_type, similarity_me
             plt.figure(dpi=180)
             ax = plt.gca()
             ax.boxplot(all_recalls[index].T, vert=False)
-            ax.set_title('Spectral clustering recall: ' + aff_norm_method + ' norm, ' + graph_mode + ' graph')
+            ax.set_title('Affinity propagation recalls: ' + aff_norm_method + ' norm, ' + graph_mode + ' graph')
             # ax.legend(input_files, fontsize=5, loc='best', bbox_to_anchor=(1, 1))
             ax.set_yticklabels(input_files[index], fontsize=5)
             plt.grid()
-            plt.savefig(outdir + 'Spectral_clustering_recalls_' + aff_norm_method + '_' + graph_mode + '_boxplot.png',
+            plt.savefig(outdir + 'Affinity_propagation_recalls_' + aff_norm_method + '_' + graph_mode + '_boxplot.png',
                         bbox_inches='tight')
 
             all_precisions = np.array(all_precisions)
@@ -414,12 +402,13 @@ def spectral_clustering_segmentation(num_imgs, n_slic, graph_type, similarity_me
             plt.figure(dpi=180)
             ax = plt.gca()
             ax.boxplot(all_precisions[index].T, vert=False)
-            ax.set_title('Spectral clustering precision: ' + aff_norm_method + ' norm, ' + graph_mode + ' graph')
+            ax.set_title('Affinity propagation precisions: ' + aff_norm_method + ' norm, ' + graph_mode + ' graph')
             # ax.legend(input_files, fontsize=5, loc='best', bbox_to_anchor=(1, 1))
             ax.set_yticklabels(input_files[index], fontsize=5)
             plt.grid()
-            plt.savefig(outdir + 'Spectral_clustering_precision_' + aff_norm_method + '_' + graph_mode + '_boxplot.png',
-                        bbox_inches='tight')
+            plt.savefig(
+                outdir + 'Affinity_propagation_precisions_' + aff_norm_method + '_' + graph_mode + '_boxplot.png',
+                bbox_inches='tight')
 
 
 if __name__ == '__main__':
@@ -439,7 +428,8 @@ if __name__ == '__main__':
     # Segmentation parameters
     graph_mode = 'complete'  # Choose: 'complete' to use whole graph or 'mst' to use Minimum Spanning Tree
     aff_norm_method = 'global'  # Choose: 'global' or 'local'
-    num_clusters = 'min'
 
-    spectral_clustering_segmentation(num_imgs, n_slic, graph_type, similarity_measure, gradients_dir, bsd_subset,
-                                    graph_mode, aff_norm_method, num_clusters)
+    affinity_propagation_segmentation(num_imgs, n_slic, graph_type, similarity_measure, gradients_dir, bsd_subset,
+                                      graph_mode, aff_norm_method)
+
+
