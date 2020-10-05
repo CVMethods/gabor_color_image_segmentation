@@ -90,7 +90,7 @@ class ImageIndexer(object):
         self.gradient_shapes_buffer = []
 
 
-def perceptual_gradient_computation(im_file, img, regions_slic, graph_type, graph_raw, g_energies, ground_distance, similarity_measure, outdir):
+def perceptual_slic_gradient_computation(im_file, img, regions_slic, graph_type, graph_raw, g_energies, ground_distance, similarity_measure, outdir):
     print('##############################', im_file, '##############################')
 
     graph_lum = graph_raw.copy()
@@ -162,7 +162,7 @@ def perceptual_gradient_computation(im_file, img, regions_slic, graph_type, grap
     return stacked_gradients
 
 
-def generate_h5_graph_gradients_dataset(num_imgs, n_slic, graph_type, similarity_measure):
+def generate_h5_slic_graph_gradients_dataset(num_imgs, n_slic, graph_type, similarity_measure):
     num_cores = -1
     hdf5_indir_im = Path('../../data/hdf5_datasets/'+str(num_imgs)+'images/' + 'images')
     hdf5_indir_spix = Path('../../data/hdf5_datasets/'+str(num_imgs)+'images/' + 'superpixels/'+str(n_slic)+'_slic')
@@ -269,8 +269,8 @@ def generate_h5_graph_gradients_dataset(num_imgs, n_slic, graph_type, similarity
                 os.makedirs(outdir)
 
             perceptual_gradients = Parallel(n_jobs=num_cores)(delayed(
-                perceptual_gradient_computation)(im_file, img, regions_slic, graph_type, graph_raw, g_energies, ground_distance, similarity_measure, outdir) for im_file, img, regions_slic, graph_raw, g_energies in
-                zip(img_ids, images, superpixels, all_raw_graphs, gabor_features_norm))
+                perceptual_slic_gradient_computation)(im_file, img, regions_slic, graph_type, graph_raw, g_energies, ground_distance, similarity_measure, outdir) for im_file, img, regions_slic, graph_raw, g_energies in
+                                                              zip(img_ids, images, superpixels, all_raw_graphs, gabor_features_norm))
 
             h5_outdir = hdf5_outdir / features_input_dir
             h5_outdir.mkdir(parents=True, exist_ok=True)
@@ -296,6 +296,6 @@ if __name__ == '__main__':
     graph_type = '4nn'  # Choose: 'complete', 'knn', 'rag', 'keps' (k defines the number of neighbors or the radius)
 
     # Graph distance parameters
-    method = 'OT'  # Choose: 'OT' for Earth Movers Distance or 'KL' for Kullback-Leiber divergence
+    similarity_measure = 'OT'  # Choose: 'OT' for Earth Movers Distance or 'KL' for Kullback-Leiber divergence
 
-    generate_h5_graph_gradients_dataset(num_imgs, n_slic, graph_type, method)
+    generate_h5_slic_graph_gradients_dataset(num_imgs, n_slic, graph_type, similarity_measure)

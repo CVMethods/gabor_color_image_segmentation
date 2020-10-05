@@ -89,41 +89,59 @@ class ImageIndexer(object):
         self.gradient_shapes_buffer = []
 
 
-def compute_perceptual_gradient(i_dataset, dataset):
-    img_id, image, img_size, g_energies, ground_truth_segmnt, edges_index, neighbors_edges = dataset
-    rows, cols, channels = img_size
+def perceptual_gradient_computation(im_file, img_shape, edges_info, g_energies, ground_distance, outdir):
+    num_cores = -1
+    rows, cols, channels = img_shape
+    edges_index, neighbors_edges = edges_info
 
-    print('dataset image:', img_id)
-
+    print('Image:', im_file)
     g_energies_lum = g_energies[:, :, 0]
     g_energies_cr = g_energies[:, :, 1]
     g_energies_ci = g_energies[:, :, 2]
 
-    weights_lum = np.array(Parallel(n_jobs=-1)
-                            (delayed(em_dist_mine)(np.float64(g_energies_lum[e]), ground_distance) for e in edges_index))
+    ''' Updating edges weights with similarity measure (OT/KL) '''
+    weights_lum = np.array(Parallel(n_jobs=num_cores)
+                           (delayed(em_dist_mine)(np.float64(g_energies_lum[e]), ground_distance) for e in edges_index))
 
-    weights_cr = np.array(Parallel(n_jobs=-1)
+
+    weights_cr = np.array(Parallel(n_jobs=num_cores)
                            (delayed(em_dist_mine)(np.float64(g_energies_cr[e]), ground_distance) for e in edges_index))
 
-    weights_ci = np.array(Parallel(n_jobs=-1)
+    weights_ci = np.array(Parallel(n_jobs=num_cores)
                            (delayed(em_dist_mine)(np.float64(g_energies_ci[e]), ground_distance) for e in edges_index))
+
+    ''' Computing target gradient from the ground truth'''
+    ground_truth_segments = np.array(get_segment_from_filename(im_file))
+    weights_gt = np.zeros(len(edges_index), dtype=np.float32)
+    for truth in ground_truth_segments:
+        truth = truth.reshape(rows*cols)
+        weights_gt += np.array(Parallel(n_jobs=num_cores)(
+            delayed(dist_label)((truth[e[0]], truth[e[1]])) for e in list(edges_index)))
+
+    weights_gt = (weights_gt - min(weights_gt)) / (max(weights_gt) - min(weights_gt))
+
+    stacked_gradients = np.column_stack((weights_lum, weights_cr, weights_ci, weights_gt))
 
     gradient_lum = np.empty((rows * cols), dtype=np.float32)
     gradient_cr = np.empty((rows * cols), dtype=np.float32)
     gradient_ci = np.empty((rows * cols), dtype=np.float32)
+    gradient_gt = np.empty((rows * cols), dtype=np.float32)
 
     for pp in range(rows * cols):
         gradient_lum[pp] = np.max(weights_lum[neighbors_edges[pp]])
         gradient_cr[pp] = np.max(weights_cr[neighbors_edges[pp]])
         gradient_ci[pp] = np.max(weights_ci[neighbors_edges[pp]])
+        gradient_gt[pp] = np.max(weights_gt[neighbors_edges[pp]])
 
+    ##############################################################################
+    '''Visualization Section: show and/or save images'''
     plt.figure(dpi=180)
     ax = plt.gca()
     ax.imshow(gradient_lum.reshape((rows, cols)), cmap='gray')
     ax.tick_params(axis='both', which='both', labelsize=7, pad=0.1,
                    length=2)  # , bottom=False, left=False, labelbottom=False, labelleft=False
     ax.set_title('Luminance gradient', fontsize=10)
-    plt.savefig(outdir + '%02d' % i_dataset + '_' + img_id + '_lum_grad.png')
+    plt.savefig(outdir + im_file + '_lum_grad.png')
 
     plt.figure(dpi=180)
     ax = plt.gca()
@@ -131,7 +149,7 @@ def compute_perceptual_gradient(i_dataset, dataset):
     ax.tick_params(axis='both', which='both', labelsize=7, pad=0.1,
                    length=2)  # , bottom=False, left=False, labelbottom=False, labelleft=False
     ax.set_title('Chrominance (Re) gradient', fontsize=10)
-    plt.savefig(outdir + '%02d' % i_dataset + '_' + img_id + '_cr_grad.png')
+    plt.savefig(outdir + im_file + '_cr_grad.png')
 
     plt.figure(dpi=180)
     ax = plt.gca()
@@ -139,13 +157,21 @@ def compute_perceptual_gradient(i_dataset, dataset):
     ax.tick_params(axis='both', which='both', labelsize=7, pad=0.1,
                    length=2)  # , bottom=False, left=False, labelbottom=False, labelleft=False
     ax.set_title('Chrominance (Im) gradient', fontsize=10)
-    plt.savefig(outdir + '%02d' % i_dataset + '_' + img_id + '_ci_grad.png')
+    plt.savefig(outdir + im_file + '_ci_grad.png')
+
+    plt.figure(dpi=180)
+    ax = plt.gca()
+    ax.imshow(gradient_gt.reshape((rows, cols)), cmap='gray')
+    ax.tick_params(axis='both', which='both', labelsize=7, pad=0.1,
+                   length=2)  # , bottom=False, left=False, labelbottom=False, labelleft=False
+    ax.set_title('Ground truth gradient', fontsize=10)
+    plt.savefig(outdir + im_file + '_gt_grad.png')
 
     plt.cla()
     plt.clf()
     plt.close()
 
-    return np.column_stack((gradient_lum, gradient_cr, gradient_ci))
+    return stacked_gradients
 
 
 def get_gt_min_nsegments(segments):
@@ -166,35 +192,13 @@ def prepare_dataset(img_id, image, gabor_features, img_shape):
     return img_id, image, img_shape, gabor_features, min_ground_truth, edges_index, neighbors_edges
 
 
-if __name__ == '__main__':
+def generate_h5_graph_gradients_dataset(num_imgs, kneighbors, similarity_measure):
     num_cores = -1
+    hdf5_indir_im = Path('../../data/hdf5_datasets/'+str(num_imgs)+'images/' + 'images')
+    hdf5_indir_feat = Path('../../data/hdf5_datasets/'+str(num_imgs)+'images/' + 'features')
+    hdf5_outdir = Path('../../data/hdf5_datasets/'+str(num_imgs)+'images/' + 'gradients/'+str(kneighbors) + 'nn_' + similarity_measure)
 
-    num_imgs = 7
-
-    hdf5_dir = Path('../../data/hdf5_datasets/')
-
-    if num_imgs is 500:
-        # Path to whole Berkeley image data set
-        hdf5_indir_im = hdf5_dir / 'complete' / 'images'
-        hdf5_indir_feat = hdf5_dir / 'complete' / 'features'
-        hdf5_outdir = hdf5_dir / 'complete' / 'gradients'
-        num_imgs_dir = 'complete/'
-
-    elif num_imgs is 7:
-        # Path to my 7 favourite images from the Berkeley data set
-        hdf5_indir_im = hdf5_dir / '7images/' / 'images'
-        hdf5_indir_feat = hdf5_dir / '7images/' / 'features'
-        hdf5_outdir = hdf5_dir / '7images' / 'gradients'
-        num_imgs_dir = '7images/'
-
-    elif num_imgs is 25:
-        # Path to 25 images from the Berkeley data set
-        hdf5_indir_im = hdf5_dir / '25images' / 'images'
-        hdf5_indir_feat = hdf5_dir / '25images' / 'features'
-        hdf5_outdir = hdf5_dir / '25images' / 'gradients'
-        num_imgs_dir = '25images/'
-
-    hdf5_outdir.mkdir(parents=True, exist_ok=True)
+    num_imgs_dir = str(num_imgs)+'images/'
 
     print('Reading Berkeley image data set')
     t0 = time.time()
@@ -203,7 +207,6 @@ if __name__ == '__main__':
     image_vectors = np.array(images_file["/images"])
     img_shapes = np.array(images_file["/image_shapes"])
     img_ids = np.array(images_file["/image_ids"])
-    img_subdirs = np.array(images_file["/image_subdirs"])
 
     images = np.array(Parallel(n_jobs=num_cores)(
         delayed(np.reshape)(img, (shape[0], shape[1], shape[2])) for img, shape in zip(image_vectors, img_shapes)))
@@ -211,20 +214,18 @@ if __name__ == '__main__':
     t1 = time.time()
     print('Reading hdf5 image data set time: %.2fs' % (t1 - t0))
 
-    # img_training = images[img_subdirs == 'train']
-    # pdb.set_trace()
+    ''' Computing Graphs for all images'''
+    edges_and_neighbors = Parallel(n_jobs=num_cores)(
+        delayed(get_pixel_graph)(kneighbors, img_shape) for img_shape in img_shapes)
 
-    # Graph function parameters
-    kneighbors = 8
-
-    input_files = os.listdir(hdf5_indir_feat)
-    for features_input_file in input_files:
-        with h5py.File(hdf5_indir_feat / features_input_file, "r+") as features_file:
+    feat_dirs = sorted(os.listdir(hdf5_indir_feat))
+    for features_input_dir in feat_dirs:
+        time_start = time.time()
+        with h5py.File(hdf5_indir_feat / features_input_dir / 'Gabor_features.h5', "r+") as features_file:
             print('Reading Berkeley features data set')
-            print('File name: ', features_input_file)
+            print('Gabor configuration: ', features_input_dir)
             t0 = time.time()
             feature_vectors = np.array(features_file["/gabor_features"])
-            feature_shapes = np.array(features_file["/feature_shapes"])
 
             n_freq = features_file.attrs['num_freq']
             n_angles = features_file.attrs['num_angles']
@@ -239,31 +240,42 @@ if __name__ == '__main__':
             # Compute ground distance matrix
             ground_distance = cost_matrix_texture(n_freq, n_angles)
 
-            iterator = zip(img_ids, images, gabor_features_norm, img_shapes)
-
-            datasets = Parallel(n_jobs=num_cores)(
-                delayed(prepare_dataset)(im_id, image, feature, shape) for im_id, image, feature, shape in iterator)
-
-            output_file_name = features_input_file.split('_')
-            output_file_name[1] = 'PerceptualGradients'
-            output_file = '_'.join(output_file_name)
-
-            outdir = '../outdir/perceptual_gradient/' + num_imgs_dir + 'pixel_level/' + output_file[:-3] + '/'
+            outdir = '../outdir/' + \
+                     num_imgs_dir + \
+                     'gradients/' + \
+                     (str(kneighbors) + 'nn_' + similarity_measure) + '/' + \
+                     features_input_dir + '/'
 
             if not os.path.exists(outdir):
                 os.makedirs(outdir)
 
-            perceptual_gradients = Parallel(n_jobs=num_cores, prefer='processes')(delayed(compute_perceptual_gradient)(i_dataset + 1, dataset) for i_dataset, dataset in enumerate(datasets))
+            perceptual_gradients = Parallel(n_jobs=num_cores)(delayed(
+                perceptual_gradient_computation)(im_file, img_shape, edges_info, g_energies, ground_distance, outdir)
+                                                              for im_file, img, img_shape, edges_info, g_energies in
+                                                              zip(img_ids, images, img_shapes, edges_and_neighbors,
+                                                                  gabor_features_norm))
 
+            h5_outdir = hdf5_outdir / features_input_dir
+            h5_outdir.mkdir(parents=True, exist_ok=True)
 
-            with ImageIndexer(hdf5_outdir / output_file,
+            with ImageIndexer(h5_outdir / 'gradients.h5',
                               buffer_size=num_imgs,
                               num_of_images=num_imgs) as imageindexer:
 
                 for gradients in perceptual_gradients:
                     imageindexer.add(gradients)
 
+        time_end = time.time()
+        print('Gradient computation time: %.2fs' % (time_end - time_start))
 
 
+if __name__ == '__main__':
+    num_imgs = 7
 
+    # Graph function parameters
+    kneighbors = 4  # Choose: 'complete', 'knn', 'rag', 'keps' (k defines the number of neighbors or the radius)
 
+    # Graph distance parameters
+    method = 'OT'  # Choose: 'OT' for Earth Movers Distance or 'KL' for Kullback-Leiber divergence
+
+    generate_h5_graph_gradients_dataset(num_imgs, kneighbors, method)

@@ -185,7 +185,7 @@ def optimalK(data, nrefs, maxClusters):
 
 def global_sigma(distances, n_points):
     # return max(distances) / (n_points ** (1/np.float(3)))  # 3 is the dimension data (3d color space)
-    return max(distances) * (n_points ** (1/np.float(6)))  # 3 is the dimension data (3d color space)
+    return max(distances) * (n_points ** (1/np.float(5)))  # 3 is the dimension data (3d color space)
 
 # def global_sigma(rag):
 #     aff_matrix = nx.to_numpy_array(rag, weight='weight')

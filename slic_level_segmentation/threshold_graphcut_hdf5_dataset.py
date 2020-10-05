@@ -109,7 +109,8 @@ def get_thr_graphcut_metrics(im_file, img, regions_slic, graph_raw, perceptual_g
     return metrics_vals
 
 
-def threshold_graphcut_segmentation(num_imgs, n_slic, graph_type, similarity_measure, gradients_dir, bsd_subset, graph_mode, law_type, cut_level):
+def threshold_graphcut_segmentation(num_imgs, n_slic, graph_type, similarity_measure, gradients_dir, graph_mode,
+                                    law_type, cut_level):
     num_cores = -1
 
     hdf5_indir_im = Path('../../data/hdf5_datasets/' + str(num_imgs) + 'images/' + 'images')
@@ -142,7 +143,12 @@ def threshold_graphcut_segmentation(num_imgs, n_slic, graph_type, similarity_mea
     t1 = time.time()
     print('Reading hdf5 image data set time: %.2fs' % (t1 - t0))
 
-    if bsd_subset == 'test' or gradients_dir == 'predicted_gradients':
+    ''' Computing Graphs for test set images'''
+    raw_graphs = Parallel(n_jobs=num_cores)(
+        delayed(get_graph)(img, regions_slic, graph_type) for img, regions_slic in
+        zip(images, superpixels))
+
+    if gradients_dir == 'predicted_gradients':
         test_indices = []
         for ii in range(len(images)):
             if img_subdirs[ii] == 'test':
@@ -152,148 +158,6 @@ def threshold_graphcut_segmentation(num_imgs, n_slic, graph_type, similarity_mea
         images = images[test_indices]
         superpixels = superpixels[test_indices]
 
-    ''' Computing Graphs for test set images'''
-    raw_graphs = Parallel(n_jobs=num_cores)(
-        delayed(get_graph)(img, regions_slic, graph_type) for img, regions_slic in
-        zip(images, superpixels))
-
-    if gradients_dir == 'gradients':
-
-        input_files = os.listdir(hdf5_indir_grad)
-        all_f_scores = []
-        all_precisions = []
-        all_recalls = []
-        for gradients_input_file in input_files:
-            with h5py.File(hdf5_indir_grad / gradients_input_file / 'gradients.h5', "r+") as gradients_file:
-                print('Reading Berkeley features data set')
-                print('File name: ', gradients_input_file)
-
-                gradient_vectors = np.array(gradients_file["/perceptual_gradients"])
-                gradient_shapes = np.array(gradients_file["/gradient_shapes"])
-
-                if bsd_subset == 'test':
-                    gradient_vectors = gradient_vectors[test_indices]
-                    gradient_shapes = gradient_shapes[test_indices]
-
-                imgs_gradients = Parallel(n_jobs=num_cores)(
-                    delayed(np.reshape)(gradients, (shape[0], shape[1])) for gradients, shape in
-                    zip(gradient_vectors, gradient_shapes))
-
-                outdir = '../outdir/' + \
-                         num_imgs_dir + \
-                         'slic_level_segmentation/' + \
-                         (str(n_slic) + '_slic_' + graph_type + '_' + similarity_measure) + '/' + \
-                         'SimpleSum' + '_' + bsd_subset + '/' + \
-                         'threshold_graphcut_' + law_type + '_dist_' + graph_mode + '_graph/' + \
-                         gradients_input_file + '/'
-
-                metrics_values = Parallel(n_jobs=num_cores)(
-                    delayed(get_thr_graphcut_metrics)(im_file, img, regions_slic, graph_raw, perceptual_gradients,
-                                                      graph_mode, law_type, cut_level, gradients_dir, outdir)
-                    for im_file, img, regions_slic, graph_raw, perceptual_gradients in
-                    zip(img_ids, images, superpixels, raw_graphs, imgs_gradients))
-
-                outdir += 'results/'
-                if not os.path.exists(outdir):
-                    os.makedirs(outdir)
-
-                metrics_values = np.array(metrics_values)
-                recall = metrics_values[:, 0]
-                all_recalls.append(recall)
-
-                precision = metrics_values[:, 1]
-                all_precisions.append(precision)
-
-                f_score = hmean((precision, recall), axis=0)
-                all_f_scores.append(f_score)
-
-                plt.figure(dpi=180)
-                plt.plot(np.arange(len(images)) + 1, recall, '-o', c='k', label='recall')
-                plt.plot(np.arange(len(images)) + 1, precision, '-o', c='r', label='precision')
-                plt.title('Thr graphcut P/R histogram')
-                plt.xlabel(
-                    'Rmax: %.3f, Rmin: %.3f, Rmean: %.3f, Rmed: %.3f, Rstd: %.3f \n Pmax: %.3f, Pmin: %.3f, Pmean: %.3f, Pmed: %.3f, Pstd: %.3f ' % (
-                        recall.max(), recall.min(), recall.mean(), np.median(recall), recall.std(), precision.max(),
-                        precision.min(), precision.mean(), np.median(precision), precision.std()))
-                plt.ylim(0, 1.05)
-                plt.legend()
-                plt.grid()
-                plt.savefig(outdir + 'Thr_graphcut_PR_hist.png', bbox_inches='tight')
-
-                plt.figure(dpi=180)
-                sns.distplot(recall, color='black', label='recall')
-                sns.distplot(precision, color='red', label='precision')
-                plt.title('Thr graphcut P/R density histogram')
-
-                plt.legend()
-                plt.grid()
-                plt.savefig(outdir + 'Thr_graphcut_PR_density_hist.png', bbox_inches='tight')
-
-                plt.figure(dpi=180)
-                ax = plt.gca()
-                ax.boxplot(list([precision, recall]))
-                ax.set_title('Thr graphcut P/R density box plot')
-                ax.set_xticklabels(['precision', 'recall'])
-                ax.set_xlabel('F-score: %.3f' % np.median(f_score))
-                plt.grid()
-                plt.savefig(outdir + 'Thr_graphcut_PR_boxplot.png', bbox_inches='tight')
-
-                plt.close('all')
-
-        outdir = '../outdir/' + \
-                 num_imgs_dir + \
-                 'slic_level_segmentation/' + \
-                 (str(n_slic) + '_slic_' + graph_type + '_' + similarity_measure) + '/' + \
-                 'SimpleSum' + '_' + bsd_subset + '/' + \
-                 'threshold_graphcut_' + law_type + '_dist_' + graph_mode + '_graph/'
-
-        if not os.path.exists(outdir):
-            os.makedirs(outdir)
-
-        all_f_scores = np.array(all_f_scores)
-        index = np.argsort(np.median(all_f_scores, axis=1))
-        input_files = np.array(input_files)
-
-        plt.figure(dpi=180)
-        ax = plt.gca()
-        ax.boxplot(all_f_scores[index].T, vert=False)
-        ax.set_title('Thr graphcut F scores: ' + law_type + ' dist, ' + graph_mode + ' graph')
-        # ax.legend(input_files, fontsize=5, loc='best', bbox_to_anchor=(1, 1))
-        ax.set_yticklabels(input_files[index], fontsize=5)
-        plt.grid()
-        plt.savefig(outdir + 'Thr_graphcut_Fscores_' + law_type + '_' + graph_mode + '_boxplot.png',
-                    bbox_inches='tight')
-
-        all_recalls = np.array(all_recalls)
-        index = np.argsort(np.median(all_recalls, axis=1))
-        input_files = np.array(input_files)
-
-        plt.figure(dpi=180)
-        ax = plt.gca()
-        ax.boxplot(all_recalls[index].T, vert=False)
-        ax.set_title('Thr graphcut recall: ' + law_type + ' dist, ' + graph_mode + ' graph')
-        # ax.legend(input_files, fontsize=5, loc='best', bbox_to_anchor=(1, 1))
-        ax.set_yticklabels(input_files[index], fontsize=5)
-        plt.grid()
-        plt.savefig(outdir + 'Thr_graphcut_recalls_' + law_type + '_' + graph_mode + '_boxplot.png',
-                    bbox_inches='tight')
-
-        all_precisions = np.array(all_precisions)
-        index = np.argsort(np.median(all_precisions, axis=1))
-        input_files = np.array(input_files)
-
-        plt.figure(dpi=180)
-        ax = plt.gca()
-        ax.boxplot(all_precisions[index].T, vert=False)
-        ax.set_title('Thr graphcut precision: ' + law_type + ' dist, ' + graph_mode + ' graph')
-        # ax.legend(input_files, fontsize=5, loc='best', bbox_to_anchor=(1, 1))
-        ax.set_yticklabels(input_files[index], fontsize=5)
-        plt.grid()
-        plt.savefig(outdir + 'Thr_graphcut_precisions_' + law_type + '_' + graph_mode + '_boxplot.png',
-                    bbox_inches='tight')
-
-    if gradients_dir == 'predicted_gradients':
-
         model_input_dirs = os.listdir(hdf5_indir_grad)
         for mm, model_name in enumerate(model_input_dirs):
             input_files = os.listdir(hdf5_indir_grad / model_name)
@@ -301,10 +165,10 @@ def threshold_graphcut_segmentation(num_imgs, n_slic, graph_type, similarity_mea
             all_precisions = []
             all_recalls = []
             for gradients_input_file in input_files:
-                with h5py.File(hdf5_indir_grad / model_name / gradients_input_file / 'predicted_gradients.h5', "r+") as gradients_file:
+                with h5py.File(hdf5_indir_grad / model_name / gradients_input_file / 'predicted_gradients.h5',
+                               "r+") as gradients_file:
                     print('Reading Berkeley features data set')
                     print('File name: ', gradients_input_file)
-                    t0 = time.time()
 
                     imgs_gradients = np.array(gradients_file["/predicted_gradients"])
 
@@ -422,6 +286,140 @@ def threshold_graphcut_segmentation(num_imgs, n_slic, graph_type, similarity_mea
                         bbox_inches='tight')
 
 
+
+
+    elif gradients_dir == 'gradients':
+
+        input_files = os.listdir(hdf5_indir_grad)
+        all_f_scores = []
+        all_precisions = []
+        all_recalls = []
+        for gradients_input_file in input_files:
+            with h5py.File(hdf5_indir_grad / gradients_input_file / 'gradients.h5', "r+") as gradients_file:
+                print('Reading Berkeley features data set')
+                print('File name: ', gradients_input_file)
+
+                gradient_vectors = np.array(gradients_file["/perceptual_gradients"])
+                gradient_shapes = np.array(gradients_file["/gradient_shapes"])
+
+                imgs_gradients = Parallel(n_jobs=num_cores)(
+                    delayed(np.reshape)(gradients, (shape[0], shape[1])) for gradients, shape in
+                    zip(gradient_vectors, gradient_shapes))
+
+                outdir = '../outdir/' + \
+                         num_imgs_dir + \
+                         'slic_level_segmentation/' + \
+                         (str(n_slic) + '_slic_' + graph_type + '_' + similarity_measure) + '/' + \
+                         'SimpleSum_all_imgs/' + \
+                         'threshold_graphcut_' + law_type + '_dist_' + graph_mode + '_graph/' + \
+                         gradients_input_file + '/'
+
+                metrics_values = Parallel(n_jobs=num_cores)(
+                    delayed(get_thr_graphcut_metrics)(im_file, img, regions_slic, graph_raw, perceptual_gradients,
+                                                      graph_mode, law_type, cut_level, gradients_dir, outdir)
+                    for im_file, img, regions_slic, graph_raw, perceptual_gradients in
+                    zip(img_ids, images, superpixels, raw_graphs, imgs_gradients))
+
+                outdir += 'results/'
+                if not os.path.exists(outdir):
+                    os.makedirs(outdir)
+
+                metrics_values = np.array(metrics_values)
+                recall = metrics_values[:, 0]
+                all_recalls.append(recall)
+
+                precision = metrics_values[:, 1]
+                all_precisions.append(precision)
+
+                f_score = hmean((precision, recall), axis=0)
+                all_f_scores.append(f_score)
+
+                plt.figure(dpi=180)
+                plt.plot(np.arange(len(images)) + 1, recall, '-o', c='k', label='recall')
+                plt.plot(np.arange(len(images)) + 1, precision, '-o', c='r', label='precision')
+                plt.title('Thr graphcut P/R histogram')
+                plt.xlabel(
+                    'Rmax: %.3f, Rmin: %.3f, Rmean: %.3f, Rmed: %.3f, Rstd: %.3f \n Pmax: %.3f, Pmin: %.3f, Pmean: %.3f, Pmed: %.3f, Pstd: %.3f ' % (
+                        recall.max(), recall.min(), recall.mean(), np.median(recall), recall.std(), precision.max(),
+                        precision.min(), precision.mean(), np.median(precision), precision.std()))
+                plt.ylim(0, 1.05)
+                plt.legend()
+                plt.grid()
+                plt.savefig(outdir + 'Thr_graphcut_PR_hist.png', bbox_inches='tight')
+
+                plt.figure(dpi=180)
+                sns.distplot(recall, color='black', label='recall')
+                sns.distplot(precision, color='red', label='precision')
+                plt.title('Thr graphcut P/R density histogram')
+
+                plt.legend()
+                plt.grid()
+                plt.savefig(outdir + 'Thr_graphcut_PR_density_hist.png', bbox_inches='tight')
+
+                plt.figure(dpi=180)
+                ax = plt.gca()
+                ax.boxplot(list([precision, recall]))
+                ax.set_title('Thr graphcut P/R density box plot')
+                ax.set_xticklabels(['precision', 'recall'])
+                ax.set_xlabel('F-score: %.3f' % np.median(f_score))
+                plt.grid()
+                plt.savefig(outdir + 'Thr_graphcut_PR_boxplot.png', bbox_inches='tight')
+
+                plt.close('all')
+
+        outdir = '../outdir/' + \
+                 num_imgs_dir + \
+                 'slic_level_segmentation/' + \
+                 (str(n_slic) + '_slic_' + graph_type + '_' + similarity_measure) + '/' + \
+                 'SimpleSum_all_imgs/' + \
+                 'threshold_graphcut_' + law_type + '_dist_' + graph_mode + '_graph/'
+
+        if not os.path.exists(outdir):
+            os.makedirs(outdir)
+
+        all_f_scores = np.array(all_f_scores)
+        index = np.argsort(np.median(all_f_scores, axis=1))
+        input_files = np.array(input_files)
+
+        plt.figure(dpi=180)
+        ax = plt.gca()
+        ax.boxplot(all_f_scores[index].T, vert=False)
+        ax.set_title('Thr graphcut F scores: ' + law_type + ' dist, ' + graph_mode + ' graph')
+        # ax.legend(input_files, fontsize=5, loc='best', bbox_to_anchor=(1, 1))
+        ax.set_yticklabels(input_files[index], fontsize=5)
+        plt.grid()
+        plt.savefig(outdir + 'Thr_graphcut_Fscores_' + law_type + '_' + graph_mode + '_boxplot.png',
+                    bbox_inches='tight')
+
+        all_recalls = np.array(all_recalls)
+        index = np.argsort(np.median(all_recalls, axis=1))
+        input_files = np.array(input_files)
+
+        plt.figure(dpi=180)
+        ax = plt.gca()
+        ax.boxplot(all_recalls[index].T, vert=False)
+        ax.set_title('Thr graphcut recall: ' + law_type + ' dist, ' + graph_mode + ' graph')
+        # ax.legend(input_files, fontsize=5, loc='best', bbox_to_anchor=(1, 1))
+        ax.set_yticklabels(input_files[index], fontsize=5)
+        plt.grid()
+        plt.savefig(outdir + 'Thr_graphcut_recalls_' + law_type + '_' + graph_mode + '_boxplot.png',
+                    bbox_inches='tight')
+
+        all_precisions = np.array(all_precisions)
+        index = np.argsort(np.median(all_precisions, axis=1))
+        input_files = np.array(input_files)
+
+        plt.figure(dpi=180)
+        ax = plt.gca()
+        ax.boxplot(all_precisions[index].T, vert=False)
+        ax.set_title('Thr graphcut precision: ' + law_type + ' dist, ' + graph_mode + ' graph')
+        # ax.legend(input_files, fontsize=5, loc='best', bbox_to_anchor=(1, 1))
+        ax.set_yticklabels(input_files[index], fontsize=5)
+        plt.grid()
+        plt.savefig(outdir + 'Thr_graphcut_precisions_' + law_type + '_' + graph_mode + '_boxplot.png',
+                    bbox_inches='tight')
+
+
 if __name__ == '__main__':
     num_imgs = 7
 
@@ -433,12 +431,12 @@ if __name__ == '__main__':
     # Distance parameter
     similarity_measure = 'OT'  # Choose: 'OT' for Earth Movers Distance or 'KL' for Kullback-Leiber divergence
 
-    gradients_dir = 'predicted_gradients'  # 'predicted_gradients'
-    bsd_subset = 'test'
+    gradients_dir = 'gradients'  # 'predicted_gradients'
 
     # Segmentation parameters
     graph_mode = 'mst'  # Choose: 'complete' to use whole graph or 'mst' to use Minimum Spanning Tree
     law_type = 'gamma'  # Choose 'log' for lognorm distribution or 'gamma' for gamma distribution
     cut_level = 0.9  # set threshold at the 90% quantile level
 
-    threshold_graphcut_segmentation(num_imgs, n_slic, graph_type, similarity_measure, gradients_dir, bsd_subset, graph_mode, law_type, cut_level)
+    threshold_graphcut_segmentation(num_imgs, n_slic, graph_type, similarity_measure, gradients_dir, graph_mode,
+                                    law_type, cut_level)
