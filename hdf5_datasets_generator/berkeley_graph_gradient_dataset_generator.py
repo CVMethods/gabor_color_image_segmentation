@@ -90,7 +90,7 @@ class ImageIndexer(object):
 
 
 def perceptual_gradient_computation(im_file, img_shape, edges_info, g_energies, ground_distance, outdir):
-    num_cores = -1
+    num_cores = multiprocessing.cpu_count()
     rows, cols, channels = img_shape
     edges_index, neighbors_edges = edges_info
 
@@ -100,21 +100,20 @@ def perceptual_gradient_computation(im_file, img_shape, edges_info, g_energies, 
     g_energies_ci = g_energies[:, :, 2]
 
     ''' Updating edges weights with similarity measure (OT/KL) '''
-    weights_lum = np.array(Parallel(n_jobs=num_cores)
+    weights_lum = np.array(Parallel(n_jobs=int(num_cores/3))
                            (delayed(em_dist_mine)(np.float64(g_energies_lum[e]), ground_distance) for e in edges_index))
 
+    weights_cr = np.array(Parallel(n_jobs=int(num_cores/3))
+                          (delayed(em_dist_mine)(np.float64(g_energies_cr[e]), ground_distance) for e in edges_index))
 
-    weights_cr = np.array(Parallel(n_jobs=num_cores)
-                           (delayed(em_dist_mine)(np.float64(g_energies_cr[e]), ground_distance) for e in edges_index))
-
-    weights_ci = np.array(Parallel(n_jobs=num_cores)
-                           (delayed(em_dist_mine)(np.float64(g_energies_ci[e]), ground_distance) for e in edges_index))
+    weights_ci = np.array(Parallel(n_jobs=int(num_cores/3))
+                          (delayed(em_dist_mine)(np.float64(g_energies_ci[e]), ground_distance) for e in edges_index))
 
     ''' Computing target gradient from the ground truth'''
     ground_truth_segments = np.array(get_segment_from_filename(im_file))
     weights_gt = np.zeros(len(edges_index), dtype=np.float32)
     for truth in ground_truth_segments:
-        truth = truth.reshape(rows*cols)
+        truth = truth.reshape(rows * cols)
         weights_gt += np.array(Parallel(n_jobs=num_cores)(
             delayed(dist_label)((truth[e[0]], truth[e[1]])) for e in list(edges_index)))
 
@@ -169,7 +168,7 @@ def perceptual_gradient_computation(im_file, img_shape, edges_info, g_energies, 
 
     plt.cla()
     plt.clf()
-    plt.close()
+    plt.close('all')
 
     return stacked_gradients
 
