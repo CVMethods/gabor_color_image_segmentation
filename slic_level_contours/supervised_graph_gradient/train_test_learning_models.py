@@ -100,13 +100,13 @@ class ImageIndexer(object):
 def predicted_slic_gradient_computation(im_file, img, regions_slic, graph_raw, perceptual_gradients, model, sclr, outdir):
     print('##############################', im_file, '##############################')
 
-    X_test = sclr.transform(perceptual_gradients[:, :-1])
+    X_test = perceptual_gradients[:, :-1]
     graph_pred = graph_raw.copy()
 
     if isinstance(model, np.ndarray):
         y_pred = np.sum(X_test * model, axis=-1)
     else:
-        y_pred = model.predict(X_test)
+        y_pred = model.predict(sclr.transform(X_test))
         y_pred = y_pred.flatten()
 
     for i_edge, e in enumerate(list(graph_raw.edges)):
@@ -129,12 +129,12 @@ def predicted_slic_gradient_computation(im_file, img, regions_slic, graph_raw, p
 def predicted_gradient_computation(im_file, img_shape, edges_info, perceptual_gradients, model, sclr, outdir):
     print('##############################', im_file, '##############################')
 
-    X_test = sclr.transform(perceptual_gradients[:, :-1])
+    X_test = perceptual_gradients[:, :-1]
 
     if isinstance(model, np.ndarray):
         y_pred = np.sum(X_test * model, axis=-1)
     else:
-        y_pred = model.predict(X_test)
+        y_pred = model.predict(sclr.transform(X_test))
         y_pred = y_pred.flatten()
 
     rows, cols, channels = img_shape
@@ -405,18 +405,21 @@ def train_test_models(num_imgs, similarity_measure, kneighbors=None, n_slic=None
                 t0 = time.time()
                 if name == 'SimpleSum':
                     if slic_level:
-                        predicted_gradients = Parallel(n_jobs=1)(
+                        predicted_gradients = Parallel(n_jobs=num_cores)(
                             delayed(predicted_slic_gradient_computation)(im_file, img, regions_slic, graph_raw,
                                                                          perceptual_gradients, regressor, scaler, outdir)
                             for im_file, img, regions_slic, graph_raw, perceptual_gradients in
                             zip(img_ids, images, superpixels, test_raw_graphs, testing_dataset))
 
                     if pixel_level:
-                        predicted_gradients = Parallel(n_jobs=1)(
+                        predicted_gradients = Parallel(n_jobs=num_cores)(
                             delayed(predicted_gradient_computation)(im_file, img_shape, edges_info, perceptual_gradients,
                                                                     regressor, scaler, outdir)
                             for im_file, img_shape, edges_info, perceptual_gradients in
                             zip(img_ids, img_shapes, edges_and_neighbors, testing_dataset))
+
+                    filename = name + '.sav'
+                    dump(regressor, outdir_models + filename)
 
                 elif name == 'MLPR_tf':
                     print(regressor.summary())
