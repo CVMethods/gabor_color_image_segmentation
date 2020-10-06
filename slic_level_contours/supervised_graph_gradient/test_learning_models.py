@@ -92,26 +92,20 @@ class ImageIndexer(object):
         self.gradient_arrays_buffer = []
 
 
-def predicted_gradient_computation(im_file, img, regions_slic, graph_raw, perceptual_gradients, model, outdir):
+def predicted_slic_gradient_computation(im_file, img, regions_slic, graph_raw, perceptual_gradients, model, sclr, outdir):
     print('##############################', im_file, '##############################')
 
-    graph_pred = graph_raw.copy()
     X_test = perceptual_gradients[:, :-1]
+    graph_pred = graph_raw.copy()
 
-    if hasattr(model, 'steps'):
-        y_pred = model.predict(X_test)
-        if model.steps[0][0] == 'MLPR':
-            y_pred = y_pred.flatten()
+    if isinstance(model, np.ndarray):
+        y_pred = np.sum(X_test * model, axis=-1)
     else:
-        y_pred = model.predict(X_test)
+        y_pred = model.predict(sclr.transform(X_test))
         y_pred = y_pred.flatten()
-
-    # y_pred = (y_pred - min(y_pred)) / (max(y_pred) - min(y_pred))
 
     for i_edge, e in enumerate(list(graph_raw.edges)):
         graph_pred[e[0]][e[1]]['weight'] = y_pred[i_edge]
-
-    # img_grad = graph2gradient(img, graph_pred, y_pred, regions_slic)
 
     save_fig = True
     fontsize = 10
@@ -124,25 +118,64 @@ def predicted_gradient_computation(im_file, img, regions_slic, graph_raw, percep
     show_and_save_imgraph(img, regions_slic, graph_pred, fig_title, img_name, fontsize, save_fig, outdir,
                           file_name, colbar_lim)
 
-    # plt.figure(dpi=180)
-    # plt.imshow(img_grad, cmap='gray')
-    # plt.savefig(outdir + im_file + '_grad_pred_' + graph_type + '.png')
+    return y_pred
+
+
+def predicted_gradient_computation(im_file, img_shape, edges_info, perceptual_gradients, model, sclr, outdir):
+    print('##############################', im_file, '##############################')
+
+    X_test = perceptual_gradients[:, :-1]
+
+    if isinstance(model, np.ndarray):
+        y_pred = np.sum(X_test * model, axis=-1)
+    else:
+        y_pred = model.predict(sclr.transform(X_test))
+        y_pred = y_pred.flatten()
+
+    rows, cols, channels = img_shape
+    edges_index, neighbors_edges = edges_info
+
+    gradient_pred = np.empty((rows * cols), dtype=np.float32)
+
+    for pp in range(rows * cols):
+        gradient_pred[pp] = np.max(y_pred[neighbors_edges[pp]])
+
+    plt.figure(dpi=180)
+    plt.imshow(gradient_pred.reshape(rows, cols), cmap='gray')
+    plt.savefig(outdir + im_file + '_pred_grad.png')
+
+    # img_grad = (gradient_pred - min(gradient_pred)) / (max(gradient_pred) - min(gradient_pred)) * 255
+    # ##############################################################################
+    # '''Visualization Section: show and/or save images'''
+    # img = Image.fromarray(np.uint8(img_grad.reshape(rows, cols)))
+    # img.save(outdir_cont + im_file + '.png')
 
     return y_pred
 
 
-def test_models(num_imgs, n_slic, graph_type, similarity_measure):
+def test_models(num_imgs, similarity_measure, kneighbors=None, n_slic=None, graph_type=None):
     num_cores = -1
+    source_dir = os.path.dirname(os.path.abspath(__file__)) + '/'
 
-    source_dir = os.path.dirname(os.path.abspath(__file__))+'/'
-    hdf5_indir_im = Path(source_dir+'../../../data/hdf5_datasets/' + str(num_imgs) + 'images/' + 'images')
-    hdf5_indir_spix = Path(source_dir+'../../../data/hdf5_datasets/'+str(num_imgs)+'images/' + 'superpixels/'+str(n_slic)+'_slic')
-    hdf5_indir_grad = Path(source_dir+'../../../data/hdf5_datasets/' + str(num_imgs) + 'images/' + 'gradients/' +
-                           str(n_slic) + '_slic_' + graph_type + '_' + similarity_measure)
-    sav_indir = Path(source_dir+'../../../data/models/' + str(num_imgs) + 'images/' +
-                     str(n_slic) + '_slic_' + graph_type + '_' + similarity_measure)
-    hdf5_outdir = Path(source_dir+'../../../data/hdf5_datasets/'+str(num_imgs)+'images/' + 'predicted_gradients/' +
-                       str(n_slic) + '_slic_' + graph_type + '_' + similarity_measure)
+    if kneighbors is not None:
+        slic_level = False
+        pixel_level = True
+        final_dir = str(kneighbors) + 'nn_' + similarity_measure
+
+    elif n_slic is not None and graph_type is not None:
+        slic_level = True
+        pixel_level = False
+        final_dir = str(n_slic) + '_slic_' + graph_type + '_' + similarity_measure
+        hdf5_indir_spix = Path(
+            source_dir + '../../../data/hdf5_datasets/' + str(num_imgs) + 'images/' + 'superpixels/' + str(
+                n_slic) + '_slic')
+
+    hdf5_indir_im = Path(source_dir + '../../../data/hdf5_datasets/' + str(num_imgs) + 'images/' + 'images')
+    hdf5_indir_grad = Path(
+        source_dir + '../../../data/hdf5_datasets/' + str(num_imgs) + 'images/' + 'gradients/' + final_dir)
+    hdf5_outdir = Path(
+        source_dir + '../../../data/hdf5_datasets/' + str(num_imgs) + 'images/' + 'predicted_gradients/' + final_dir)
+    sav_indir = Path(source_dir+'../../../data/models/' + str(num_imgs) + 'images/' + final_dir)
 
     num_imgs_dir = str(num_imgs) + 'images/'
 
@@ -155,32 +188,40 @@ def test_models(num_imgs, n_slic, graph_type, similarity_measure):
     img_ids = np.array(images_file["/image_ids"])
     img_subdirs = np.array(images_file["/image_subdirs"])
 
-    superpixels_file = h5py.File(hdf5_indir_spix / "Berkeley_superpixels.h5", "r+")
-    superpixels_vectors = np.array(superpixels_file["/superpixels"])
-
     images = np.array(Parallel(n_jobs=num_cores)(
         delayed(np.reshape)(img, (shape[0], shape[1], shape[2])) for img, shape in zip(image_vectors, img_shapes)))
 
-    superpixels = np.array(Parallel(n_jobs=num_cores)(
-        delayed(np.reshape)(img_spix, (shape[0], shape[1])) for img_spix, shape in
-        zip(superpixels_vectors, img_shapes)))
+    if slic_level:
+        superpixels_file = h5py.File(hdf5_indir_spix / "Berkeley_superpixels.h5", "r+")
+        superpixels_vectors = np.array(superpixels_file["/superpixels"])
+
+        superpixels = np.array(Parallel(n_jobs=num_cores)(
+            delayed(np.reshape)(img_spix, (shape[0], shape[1])) for img_spix, shape in
+            zip(superpixels_vectors, img_shapes)))
 
     t1 = time.time()
     print('Reading hdf5 image data set time: %.2fs' % (t1 - t0))
 
     test_indices = []
     for ii in range(len(images)):
-        if img_subdirs[ii] == 'test':  # Need to change the name of directory to add the gradients to training dataset
+        if img_subdirs[ii] == 'test':
             test_indices.append(ii)
 
     img_ids = img_ids[test_indices]
     images = images[test_indices]
-    superpixels = superpixels[test_indices]
 
     ''' Computing Graphs for test set images'''
-    test_raw_graphs = Parallel(n_jobs=num_cores)(
-        delayed(get_graph)(img, regions_slic, graph_type) for img, regions_slic in
-        zip(images, superpixels))
+    if slic_level:
+        superpixels = superpixels[test_indices]
+
+        test_raw_graphs = Parallel(n_jobs=num_cores)(
+            delayed(get_graph)(img, regions_slic, graph_type) for img, regions_slic in
+            zip(images, superpixels))
+
+    if pixel_level:
+        img_shapes = img_shapes[test_indices]
+        edges_and_neighbors = Parallel(n_jobs=num_cores)(
+            delayed(get_pixel_graph)(kneighbors, img_shape) for img_shape in img_shapes)
 
     input_directories = sorted(os.listdir(hdf5_indir_grad))
     for gradients_input_dir in input_directories:
@@ -196,6 +237,29 @@ def test_models(num_imgs, n_slic, graph_type, similarity_measure):
 
             all_imgs_gradients = Parallel(n_jobs=num_cores)(
                 delayed(np.reshape)(gradients, (shape[0], shape[1])) for gradients, shape in zip(gradient_vectors, gradient_shapes))
+
+            training_dataset = []
+            validation_dataset = []
+            for ii in range(len(all_imgs_gradients)):
+                if img_subdirs[ii] == 'train':
+                    training_dataset.extend(all_imgs_gradients[ii])
+                if img_subdirs[ii] == 'val':
+                    validation_dataset.extend(all_imgs_gradients[ii])
+
+            training_dataset = np.array(training_dataset)
+            validation_dataset = np.array(validation_dataset)
+
+            X_train = training_dataset[:, :-1]
+            y_train = training_dataset[:, -1]
+
+            X_val = validation_dataset[:, :-1]
+            y_val = validation_dataset[:, -1]
+
+            X_train, y_train = balance_classes(X_train, y_train)
+            X_val, y_val = balance_classes(X_val, y_val)
+
+            scaler = StandardScaler()  # MinMaxScaler()  #
+            scaler.fit(X_train)
 
             testing_dataset = np.array(all_imgs_gradients)[test_indices]
 
@@ -214,7 +278,7 @@ def test_models(num_imgs, n_slic, graph_type, similarity_measure):
                 outdir = source_dir+'../../outdir/' + \
                                   num_imgs_dir + \
                                   'predicted_gradients/' + \
-                                  (str(n_slic) + '_slic_' + graph_type + '_' + similarity_measure) + '/' + \
+                                  final_dir + '/' + \
                                   model_name + '/' + \
                                   gradients_input_dir + '/'
 
@@ -225,16 +289,33 @@ def test_models(num_imgs, n_slic, graph_type, similarity_measure):
                 hdf5_outdir_model.mkdir(parents=True, exist_ok=True)
 
                 if ext == 'sav':
-                    predicted_gradients = Parallel(n_jobs=num_cores)(
-                        delayed(predicted_gradient_computation)(im_file, img, regions_slic, graph_raw, perceptual_gradients, model, outdir)
-                        for im_file, img, regions_slic, graph_raw, perceptual_gradients in
-                        zip(img_ids, images, superpixels, test_raw_graphs, testing_dataset))
+                    if slic_level:
+                        predicted_gradients = Parallel(n_jobs=num_cores)(
+                            delayed(predicted_slic_gradient_computation)(im_file, img, regions_slic, graph_raw,
+                                                                         perceptual_gradients, model, scaler, outdir)
+                            for im_file, img, regions_slic, graph_raw, perceptual_gradients in
+                            zip(img_ids, images, superpixels, test_raw_graphs, testing_dataset))
+                    if pixel_level:
+                        predicted_gradients = Parallel(n_jobs=num_cores)(
+                            delayed(predicted_gradient_computation)(im_file, img_shape, edges_info,
+                                                                    perceptual_gradients,
+                                                                    model, scaler, outdir)
+                            for im_file, img_shape, edges_info, perceptual_gradients in
+                            zip(img_ids, img_shapes, edges_and_neighbors, testing_dataset))
 
                 elif ext == 'h5':
-                    predicted_gradients = Parallel(n_jobs=1)(
-                        delayed(predicted_gradient_computation)(im_file, img, regions_slic, graph_raw, perceptual_gradients, model, outdir)
-                        for im_file, img, regions_slic, graph_raw, perceptual_gradients in
-                        zip(img_ids, images, superpixels, test_raw_graphs, testing_dataset))
+                    if slic_level:
+                        predicted_gradients = Parallel(n_jobs=1)(
+                            delayed(predicted_slic_gradient_computation)(im_file, img, regions_slic, graph_raw,
+                                                                         perceptual_gradients, model, scaler, outdir)
+                            for im_file, img, regions_slic, graph_raw, perceptual_gradients in
+                            zip(img_ids, images, superpixels, test_raw_graphs, testing_dataset))
+                    if pixel_level:
+                        predicted_gradients = Parallel(n_jobs=1)(
+                            delayed(predicted_gradient_computation)(im_file, img_shape, edges_info, perceptual_gradients,
+                                                                    model, scaler, outdir)
+                            for im_file, img_shape, edges_info, perceptual_gradients in
+                            zip(img_ids, img_shapes, edges_and_neighbors, testing_dataset))
 
                 with ImageIndexer(hdf5_outdir_model / 'predicted_gradients.h5',
                               buffer_size=num_imgs,
@@ -245,8 +326,10 @@ def test_models(num_imgs, n_slic, graph_type, similarity_measure):
 
 
 if __name__ == '__main__':
-
     num_imgs = 7
+
+    kneighbors = 4
+
     n_slic = 500 * 2
 
     # Graph function parameters
@@ -255,4 +338,5 @@ if __name__ == '__main__':
     # Distance parameter
     similarity_measure = 'OT'  # Choose: 'OT' for Earth Movers Distance or 'KL' for Kullback-Leiber divergence
 
-    test_models(num_imgs, n_slic, graph_type, similarity_measure)
+    test_models(num_imgs, similarity_measure, kneighbors, None, None)
+    # test_models(num_imgs, similarity_measure, None, n_slic, graph_type)
