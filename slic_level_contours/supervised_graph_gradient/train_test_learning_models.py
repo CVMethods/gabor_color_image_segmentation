@@ -105,9 +105,13 @@ def predicted_slic_gradient_computation(im_file, img, regions_slic, graph_raw, p
 
     if isinstance(model, np.ndarray):
         y_pred = np.sum(X_test * model, axis=-1)
-    else:
+    elif not isinstance(model, np.ndarray) and sclr is not None:
         y_pred = model.predict(sclr.transform(X_test))
         y_pred = y_pred.flatten()
+    else:
+        y_pred = model.predict(X_test)
+        y_pred = y_pred.flatten()
+
 
     for i_edge, e in enumerate(list(graph_raw.edges)):
         graph_pred[e[0]][e[1]]['weight'] = y_pred[i_edge]
@@ -133,8 +137,11 @@ def predicted_gradient_computation(im_file, img_shape, edges_info, perceptual_gr
 
     if isinstance(model, np.ndarray):
         y_pred = np.sum(X_test * model, axis=-1)
-    else:
+    elif not isinstance(model, np.ndarray) and sclr is not None:
         y_pred = model.predict(sclr.transform(X_test))
+        y_pred = y_pred.flatten()
+    else:
+        y_pred = model.predict(X_test)
         y_pred = y_pred.flatten()
 
     rows, cols, channels = img_shape
@@ -339,10 +346,12 @@ def train_test_models(num_imgs, similarity_measure, kneighbors=None, n_slic=None
             # plt.show(block=False)
             # pdb.set_trace()
 
-            scaler = StandardScaler()  # MinMaxScaler()  #
-            scaler.fit(X_train)
-            X_train = scaler.transform(X_train)
-            X_val = scaler.transform(X_val)
+            scaler = None  # MinMaxScaler()  #  StandardScaler()  #
+
+            if scaler is not None:
+                scaler.fit(X_train)
+                X_train = scaler.transform(X_train)
+                X_val = scaler.transform(X_val)
 
             testing_dataset = np.array(all_imgs_gradients)[test_indices]
 
@@ -509,5 +518,5 @@ if __name__ == '__main__':
     # Distance parameter
     similarity_measure = 'OT'  # Choose: 'OT' for Earth Movers Distance or 'KL' for Kullback-Leiber divergence
 
-    train_test_models(num_imgs, similarity_measure, kneighbors, None, None)
-    # train_test_models(num_imgs, similarity_measure, None, n_slic, graph_type)
+    # train_test_models(num_imgs, similarity_measure, kneighbors, None, None)
+    train_test_models(num_imgs, similarity_measure, None, n_slic, graph_type)
