@@ -88,7 +88,7 @@ def slic_superpixel(img, n_regions, convert2lab):
     :param convert2lab: Boolean parameter to indicate if work on the LAB color space. If false it work on RGB color space
     :return: A matrix of the image size with the label for each pixel
     '''
-    regions_slic = skim.slic(img, n_segments=n_regions, compactness=25, convert2lab=convert2lab, slic_zero=False) #, compactness=0.1, sigma=0
+    regions_slic = skim.slic(img, n_segments=n_regions, compactness=20, convert2lab=convert2lab, slic_zero=False) #, compactness=0.1, sigma=0
     print('SLIC number of regions: {}'.format(len(np.unique(regions_slic))))
 
     return regions_slic
