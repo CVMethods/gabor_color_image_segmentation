@@ -106,12 +106,14 @@ def predicted_slic_gradient_computation(im_file, img, regions_slic, graph_raw, p
     if isinstance(model, np.ndarray):
         y_pred = np.sum(X_test * model, axis=-1)
     elif not isinstance(model, np.ndarray) and sclr is not None:
-        y_pred = model.predict(sclr.transform(X_test))
+        y_pred = model.predict(sclr.fit_transform(X_test))
         y_pred = y_pred.flatten()
     else:
         y_pred = model.predict(X_test)
         y_pred = y_pred.flatten()
 
+    y_pred = np.maximum(0, y_pred - np.percentile(y_pred, 5))
+    y_pred = np.minimum(1, 1 * y_pred / np.percentile(y_pred, 95))
 
     for i_edge, e in enumerate(list(graph_raw.edges)):
         graph_pred[e[0]][e[1]]['weight'] = y_pred[i_edge]
@@ -138,11 +140,14 @@ def predicted_gradient_computation(im_file, img_shape, edges_info, perceptual_gr
     if isinstance(model, np.ndarray):
         y_pred = np.sum(X_test * model, axis=-1)
     elif not isinstance(model, np.ndarray) and sclr is not None:
-        y_pred = model.predict(sclr.transform(X_test))
+        y_pred = model.predict(sclr.fit_transform(X_test))
         y_pred = y_pred.flatten()
     else:
         y_pred = model.predict(X_test)
         y_pred = y_pred.flatten()
+
+    y_pred = np.maximum(0, y_pred - np.percentile(y_pred, 5))
+    y_pred = np.minimum(1, 1 * y_pred / np.percentile(y_pred, 95))
 
     rows, cols, channels = img_shape
     edges_index, neighbors_edges = edges_info
@@ -277,7 +282,9 @@ def train_test_models(num_imgs, similarity_measure, kneighbors=None, n_slic=None
 
             training_dataset = []
             validation_dataset = []
+            all_imgs_gradients_flatten = []
             for ii in range(len(all_imgs_gradients)):
+                all_imgs_gradients_flatten.extend(all_imgs_gradients[ii])
                 if img_subdirs[ii] == 'train':
                     training_dataset.extend(all_imgs_gradients[ii])
                 if img_subdirs[ii] == 'val':
@@ -285,21 +292,20 @@ def train_test_models(num_imgs, similarity_measure, kneighbors=None, n_slic=None
 
             training_dataset = np.array(training_dataset)
             validation_dataset = np.array(validation_dataset)
+            all_imgs_gradients_flatten = np.array(all_imgs_gradients_flatten)
 
-            # if graph_type.endswith('nn'):
-            #     neighbors = int("".join(list(graph_type)[:-2]))
-            #     num_edges = (2 * neighbors) - 1
-            #     X_train = training_dataset[:, :num_edges*3]
-            #     y_train = training_dataset[:, num_edges*3:]
-            #     X_val = validation_dataset[:, :num_edges*3]
-            #     y_val = validation_dataset[:, num_edges*3:]
-            #
-            # else:
             X_train = training_dataset[:, :-1]
             y_train = training_dataset[:, -1]
 
             X_val = validation_dataset[:, :-1]
             y_val = validation_dataset[:, -1]
+
+            scaler = StandardScaler()  # None  # MinMaxScaler()  #
+
+            if scaler is not None:
+                # scaler.fit(all_imgs_gradients_flatten[:, :-1])
+                X_train = scaler.fit_transform(X_train)
+                X_val = scaler.fit_transform(X_val)
 
             X_train, y_train = balance_classes(X_train, y_train)
             X_val, y_val = balance_classes(X_val, y_val)
@@ -346,12 +352,7 @@ def train_test_models(num_imgs, similarity_measure, kneighbors=None, n_slic=None
             # plt.show(block=False)
             # pdb.set_trace()
 
-            scaler = None  # MinMaxScaler()  #  StandardScaler()  #
 
-            if scaler is not None:
-                scaler.fit(X_train)
-                X_train = scaler.transform(X_train)
-                X_val = scaler.transform(X_val)
 
             testing_dataset = np.array(all_imgs_gradients)[test_indices]
 

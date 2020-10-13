@@ -100,9 +100,15 @@ def predicted_slic_gradient_computation(im_file, img, regions_slic, graph_raw, p
 
     if isinstance(model, np.ndarray):
         y_pred = np.sum(X_test * model, axis=-1)
-    else:
-        y_pred = model.predict(sclr.transform(X_test))
+    elif not isinstance(model, np.ndarray) and sclr is not None:
+        y_pred = model.predict(sclr.fit_transform(X_test))
         y_pred = y_pred.flatten()
+    else:
+        y_pred = model.predict(X_test)
+        y_pred = y_pred.flatten()
+
+    y_pred = np.maximum(0, y_pred - np.percentile(y_pred, 5))
+    y_pred = np.minimum(1, 1 * y_pred / np.percentile(y_pred, 95))
 
     for i_edge, e in enumerate(list(graph_raw.edges)):
         graph_pred[e[0]][e[1]]['weight'] = y_pred[i_edge]
@@ -128,9 +134,15 @@ def predicted_gradient_computation(im_file, img_shape, edges_info, perceptual_gr
 
     if isinstance(model, np.ndarray):
         y_pred = np.sum(X_test * model, axis=-1)
-    else:
-        y_pred = model.predict(sclr.transform(X_test))
+    elif not isinstance(model, np.ndarray) and sclr is not None:
+        y_pred = model.predict(sclr.fit_transform(X_test))
         y_pred = y_pred.flatten()
+    else:
+        y_pred = model.predict(X_test)
+        y_pred = y_pred.flatten()
+
+    y_pred = np.maximum(0, y_pred - np.percentile(y_pred, 5))
+    y_pred = np.minimum(1, 1 * y_pred / np.percentile(y_pred, 95))
 
     rows, cols, channels = img_shape
     edges_index, neighbors_edges = edges_info
@@ -240,7 +252,9 @@ def test_models(num_imgs, similarity_measure, kneighbors=None, n_slic=None, grap
 
             training_dataset = []
             validation_dataset = []
+            all_imgs_gradients_flatten = []
             for ii in range(len(all_imgs_gradients)):
+                all_imgs_gradients_flatten.extend(all_imgs_gradients[ii])
                 if img_subdirs[ii] == 'train':
                     training_dataset.extend(all_imgs_gradients[ii])
                 if img_subdirs[ii] == 'val':
@@ -248,6 +262,7 @@ def test_models(num_imgs, similarity_measure, kneighbors=None, n_slic=None, grap
 
             training_dataset = np.array(training_dataset)
             validation_dataset = np.array(validation_dataset)
+            all_imgs_gradients_flatten = np.array(all_imgs_gradients_flatten)
 
             X_train = training_dataset[:, :-1]
             y_train = training_dataset[:, -1]
@@ -258,8 +273,12 @@ def test_models(num_imgs, similarity_measure, kneighbors=None, n_slic=None, grap
             X_train, y_train = balance_classes(X_train, y_train)
             X_val, y_val = balance_classes(X_val, y_val)
 
-            scaler = StandardScaler()  # MinMaxScaler()  #
-            scaler.fit(X_train)
+            scaler = StandardScaler()  # None  # MinMaxScaler()  #
+
+            if scaler is not None:
+                # scaler.fit(all_imgs_gradients_flatten[:, :-1])
+                X_train = scaler.fit_transform(X_train)
+                X_val = scaler.fit_transform(X_val)
 
             testing_dataset = np.array(all_imgs_gradients)[test_indices]
 
@@ -338,5 +357,5 @@ if __name__ == '__main__':
     # Distance parameter
     similarity_measure = 'OT'  # Choose: 'OT' for Earth Movers Distance or 'KL' for Kullback-Leiber divergence
 
-    test_models(num_imgs, similarity_measure, kneighbors, None, None)
-    # test_models(num_imgs, similarity_measure, None, n_slic, graph_type)
+    # test_models(num_imgs, similarity_measure, kneighbors, None, None)
+    test_models(num_imgs, similarity_measure, None, n_slic, graph_type)
