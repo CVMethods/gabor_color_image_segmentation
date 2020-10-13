@@ -8,7 +8,7 @@ import matplotlib.pyplot as plt
 import pdb
 from mpl_toolkits.mplot3d import Axes3D
 from matplotlib import colors
-from scipy.stats import gamma, lognorm
+from scipy.stats import gamma, lognorm, beta
 from skimage.future import graph
 from sklearn.cluster import SpectralClustering, KMeans, AffinityPropagation
 # from gap import gap
@@ -17,11 +17,14 @@ from sklearn.cluster import SpectralClustering, KMeans, AffinityPropagation
 def fit_distribution_law(weights, cut_level, dist_law):
     print('Max edge weight:', max(weights), 'Min edge weight:', min(weights))
     if dist_law == 'log':
-        params = lognorm.fit(weights, loc=0)  # , floc=0
+        params = lognorm.fit(weights)  # , floc=0
         thresh = lognorm.ppf(cut_level, *params)
     elif dist_law == 'gamma':
         params = gamma.fit(weights, loc=0)  #, floc=0
         thresh = gamma.ppf(cut_level, *params)
+    elif dist_law == 'beta':
+        params = beta.fit(weights)
+        thresh = beta.ppf(cut_level, *params)
     print(params)
     print('Threshold:', thresh)
 
