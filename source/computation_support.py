@@ -176,11 +176,13 @@ def balance_classes(X, y):
     ind = np.argsort(cnts)[::-1]
     X_resampled = X[y == cls[ind[0]], :]
     y_resampled = y[y == cls[ind[0]]]
+    mu, sigma = 0, 0.1
     for ii in cls[1:]:
         XX = X[y == ii, :]
         yy = y[y == ii]
-        indx = np.random.choice(np.arange(len(XX)), size=cnts[0])
-        X_resampled = np.vstack((X_resampled, XX[indx, :]))
+        indx = np.random.choice(np.arange(len(XX)), size=cnts[ind[0]])
+        noise = np.random.normal(mu, sigma, [len(indx), 3])
+        X_resampled = np.vstack((X_resampled, XX[indx, :] + noise))
         y_resampled = np.hstack((y_resampled, yy[indx]))
 
     return X_resampled, y_resampled
