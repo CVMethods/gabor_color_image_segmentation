@@ -1,7 +1,7 @@
 import numpy as np
 from scipy.signal import fftconvolve as convolve
 from scipy.ndimage import gaussian_filter
-from skimage.morphology import square, opening
+from skimage.morphology import square, opening, disk
 from joblib import Parallel, delayed
 
 __all__ = ['makeGabor_filter', 'makeGabor_filterbank', 'applyGabor_filter', 'applyGabor_filterbank']
@@ -91,13 +91,13 @@ def applyGabor_filter(image, filtr, resp_type, smooth, morph_opening, se_z):
     if morph_opening:
         # print('opening')
         period = np.int(se_z / filtr[1].get('frequency'))
-        selem = square(period)
+        selem = disk(period)
         resp_opened = opening(resp_1, selem=selem)
     else:
         resp_opened = resp_1
 
     if smooth:
-        sigma_s = 2. * filtr[1].get('sigma_x')
+        sigma_s = 1. * filtr[1].get('sigma_x')
 
         if np.iscomplexobj(resp_1):
             resp_smth = np.copy(resp_1)
