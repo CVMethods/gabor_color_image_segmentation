@@ -92,6 +92,13 @@ def get_img_contours(im_file, img_shape, edges_info, perceptual_gradients, gradi
     img.save(outdir + im_file + '.png')
     # plt.imsave(outdir + im_file + '.png', img_grad, cmap='gray')
 
+    # outdir_mat = outdir.replace(outdir.split('/')[4], outdir.split('/')[4] + '_matf')
+    # if not os.path.exists(outdir_mat):
+    #     os.makedirs(outdir_mat)
+    #
+    # mdic = {"ucm2": img_grad/255.}
+    # savemat(outdir_mat + im_file + '.mat', mdic)
+
     return img_grad
 
 
@@ -116,6 +123,13 @@ def get_slic_img_contours(im_file, img, regions_slic, graph_raw, perceptual_grad
     img = Image.fromarray(img_grad)
     img.save(outdir + im_file + '.png')
     # plt.imsave(outdir + im_file + '.png', img_grad, cmap='gray')
+
+    # outdir_mat = outdir.replace(outdir.split('/')[4], outdir.split('/')[4] + '_matf')
+    # if not os.path.exists(outdir_mat):
+    #     os.makedirs(outdir_mat)
+    #
+    # mdic = {"ucm2": img_grad/255.}
+    # savemat(outdir_mat + im_file + '.mat', mdic)
 
     return img_grad
 
