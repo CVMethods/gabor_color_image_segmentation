@@ -114,7 +114,7 @@ def get_mst(rag):
     return rag_MST
 
 
-def cost_matrix_texture(n_freq, n_angles):
+def cost_matrix_texture(n_freq, n_angles, f_bandwidth):
     signature = np.ones((n_freq, n_angles))
     pos1 = pos2 = np.where(signature >= 0)
     pos1 = np.float32(pos1)
@@ -124,7 +124,8 @@ def cost_matrix_texture(n_freq, n_angles):
     CM = np.zeros((sz, sz))
     for ii in range(sz):
         for jj in range(sz):
-            delta_freq = pos1[0][ii] - pos2[0][jj]
+            delta_freq = pos1[0][ii]**(2**f_bandwidth) - pos2[0][jj]**(2**f_bandwidth)
+            # delta_freq = pos1[0][ii] - pos2[0][jj]
             delta_theta = min(np.abs(pos1[1][ii] - pos2[1][jj]),
                               n_angles - np.abs(pos1[1][ii] - pos2[1][jj]))
             CM[ii, jj] = np.abs(delta_freq) + np.abs(delta_theta)  # the deltas had a value of 0.001

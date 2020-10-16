@@ -248,6 +248,7 @@ def generate_h5_slic_graph_gradients_dataset(num_imgs, n_slic, graph_type, simil
 
             n_freq = features_file.attrs['num_freq']
             n_angles = features_file.attrs['num_angles']
+            fb = features_file.attrs['frequency_bandwidth']
 
             gabor_features_norm = Parallel(n_jobs=num_cores)(
                 delayed(np.reshape)(features, (shape[0], shape[1], n_freq * n_angles, shape[2])) for features, shape in
@@ -257,7 +258,7 @@ def generate_h5_slic_graph_gradients_dataset(num_imgs, n_slic, graph_type, simil
             print('Reading hdf5 features data set time: %.2fs' % (t1 - t0))
 
             # Compute ground distance matrix
-            ground_distance = cost_matrix_texture(n_freq, n_angles)
+            ground_distance = cost_matrix_texture(n_freq, n_angles, fb)
 
             outdir = '../outdir/' + \
                      num_imgs_dir + \
