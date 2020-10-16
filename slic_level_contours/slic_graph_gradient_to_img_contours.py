@@ -315,8 +315,8 @@ if __name__ == '__main__':
 
     gradients_dir = 'predicted_gradients'  # 'predicted_gradients'
 
-    generate_imgcontours_from_graphs(num_imgs, similarity_measure, gradients_dir, kneighbors=kneighbors, n_slic=None,
-                                     graph_type=None)
+    # generate_imgcontours_from_graphs(num_imgs, similarity_measure, gradients_dir, kneighbors=kneighbors, n_slic=None,
+    #                                  graph_type=None)
 
     generate_imgcontours_from_graphs(num_imgs, similarity_measure, gradients_dir, kneighbors=None, n_slic=n_slic,
                                      graph_type=graph_type)
