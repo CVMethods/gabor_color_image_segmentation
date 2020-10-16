@@ -112,8 +112,8 @@ def predicted_slic_gradient_computation(im_file, img, regions_slic, graph_raw, p
         y_pred = model.predict(X_test)
         y_pred = y_pred.flatten()
 
-    y_pred = np.maximum(0, y_pred - np.percentile(y_pred, 5))
-    y_pred = np.minimum(1, 1 * y_pred / np.percentile(y_pred, 95))
+    # y_pred = np.maximum(0, y_pred - np.percentile(y_pred, 5))
+    # y_pred = np.minimum(1, 1 * y_pred / np.percentile(y_pred, 95))
 
     for i_edge, e in enumerate(list(graph_raw.edges)):
         graph_pred[e[0]][e[1]]['weight'] = y_pred[i_edge]
@@ -146,8 +146,8 @@ def predicted_gradient_computation(im_file, img_shape, edges_info, perceptual_gr
         y_pred = model.predict(X_test)
         y_pred = y_pred.flatten()
 
-    y_pred = np.maximum(0, y_pred - np.percentile(y_pred, 5))
-    y_pred = np.minimum(1, 1 * y_pred / np.percentile(y_pred, 95))
+    # y_pred = np.maximum(0, y_pred - np.percentile(y_pred, 5))
+    # y_pred = np.minimum(1, 1 * y_pred / np.percentile(y_pred, 95))
 
     rows, cols, channels = img_shape
     edges_index, neighbors_edges = edges_info
@@ -160,6 +160,10 @@ def predicted_gradient_computation(im_file, img_shape, edges_info, perceptual_gr
     plt.figure(dpi=180)
     plt.imshow(gradient_pred.reshape(rows, cols), cmap='gray')
     plt.savefig(outdir + im_file + '_pred_grad.png')
+
+    plt.cla()
+    plt.clf()
+    plt.close('all')
 
     # img_grad = (gradient_pred - min(gradient_pred)) / (max(gradient_pred) - min(gradient_pred)) * 255
     # ##############################################################################
@@ -300,7 +304,7 @@ def train_test_models(num_imgs, similarity_measure, kneighbors=None, n_slic=None
             X_val = validation_dataset[:, :-1]
             y_val = validation_dataset[:, -1]
 
-            scaler = StandardScaler()  # None  # MinMaxScaler()  #
+            scaler = None  #StandardScaler()  #  MinMaxScaler()  #
 
             if scaler is not None:
                 # scaler.fit(all_imgs_gradients_flatten[:, :-1])
