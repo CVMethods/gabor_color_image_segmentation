@@ -304,7 +304,7 @@ def train_test_models(num_imgs, similarity_measure, kneighbors=None, n_slic=None
             X_val = validation_dataset[:, :-1]
             y_val = validation_dataset[:, -1]
 
-            scaler = None  #StandardScaler()  #  MinMaxScaler()  #
+            scaler = StandardScaler()  #None  #  MinMaxScaler()  #
 
             if scaler is not None:
                 # scaler.fit(all_imgs_gradients_flatten[:, :-1])
