@@ -5,18 +5,22 @@ import numpy as np
 import cv2
 import pdb
 
+
 def calc_luminance(img):
-    L = img[:, :, 0] * 0.2125 + img[:, :, 0] * 0.7154  + img[:, :, 0] * 0.0721
+    L = img[:, :, 0] * 0.2125 + img[:, :, 0] * 0.7154 + img[:, :, 0] * 0.0721
     return L
+
 
 def normalize_img(img, rows, cols):
     img_nrmzd = (img * (np.sqrt(rows*cols))) / np.sqrt(np.sum(np.abs(img)**2))
     return img_nrmzd
 
+
 def linear_normalization(arr, nmax, nmin):
     minarr = np.min(arr)
     maxarr = np.max(arr)
     return (arr - minarr) * ((nmax - nmin)/ (maxarr - minarr)) + nmin
+
 
 def linear_normalization2(arr):
     arr //= 2.
@@ -24,12 +28,14 @@ def linear_normalization2(arr):
 
     return arr
 
+
 def hexencode(rgb):
     """Transform an RGB tuple to a hex string (html color)"""
-    r=int(rgb[0])
-    g=int(rgb[1])
-    b=int(rgb[2])
+    r = int(rgb[0])
+    g = int(rgb[1])
+    b = int(rgb[2])
     return '#%02x%02x%02x' % (r,g,b)
+
 
 def img2complex_colorspace(img, color_space):
     # see https://docs.opencv.org/trunk/de/d25/imgproc_color_conversions.html#color_convert_rgb_hsv for color space transformation info
@@ -100,8 +106,8 @@ def img2complex_normalized_colorspace(img, img_shape, color_space='HS'):
 
     ##################################  Luminance and chrominance normalization ##################################
     lum = linear_normalization(lum, 255., 0.)
-    chrom_r = linear_normalization2(chrom_r)
-    chrom_i = linear_normalization2(chrom_i)
+    chrom_r = linear_normalization(chrom_r, 255., 0.)  # linear_normalization2(chrom_r)
+    chrom_i = linear_normalization(chrom_i, 255., 0.)  # linear_normalization2(chrom_i)
 
     img_2ch = np.array((lum, chrom_r, chrom_i))
     img_2ch_norm = normalize_img(img_2ch, rows, cols)
@@ -126,6 +132,7 @@ def tonemap(img, lum, f, m, a, c):
     I_g = c * Cva + (1-c) * Lav
     I_a = a + I_l + (1-a) * I_g
     return I_a
+
 
 def calc_semisat(lum, m=0, f=0):
     lum = lum
