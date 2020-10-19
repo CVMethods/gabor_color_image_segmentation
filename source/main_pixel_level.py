@@ -17,13 +17,13 @@ from slic_level_segmentation.affinity_propagation_hdf5_dataset import *
 num_imgs = 500
 
 # Gabor filter parameters
-periods = [(2., 25.)]  #(2., 25.),, (2., 20.), (4., 45.), (4., 20.)
-bandwidths = [(1., 45)]  #, (1.0, 45), (0.7, 30)
+periods = [(3., 40.)]  #(2., 25.),, (2., 20.), (4., 45.), (4., 20.)
+bandwidths = [(0.7, 30)]  #, (1.0, 45), (0.7, 30)
 crossing_points = [(0.9, 0.9)]  #(0.65, 0.65),
 deviations = [3.]
 
 # Graph function parameters
-kneighbors = 8
+kneighbors = 4
 # Distance parameter
 similarity_measure = 'OT'  # Choose: 'OT' for Earth Movers Distance or 'KL' for Kullback-Leiber divergence
 
