@@ -44,10 +44,10 @@ def generate_imgcontours_with_sed(num_imgs, method):
     t0 = time.time()
     # Read hdf5 file and extract its information
     images_file = h5py.File(hdf5_indir_im / "Berkeley_images.h5", "r+")
-    image_vectors = np.array(images_file["/images"])
-    img_shapes = np.array(images_file["/image_shapes"])
-    img_ids = np.array(images_file["/image_ids"])
-    img_subdirs = np.array(images_file["/image_subdirs"])
+    image_vectors = images_file["images"][:]
+    img_shapes = images_file["image_shapes"][:]
+    img_ids = images_file["image_ids"][:]
+    img_subdirs = images_file["image_subdirs"][:]
 
     images = np.array(Parallel(n_jobs=num_cores)(
         delayed(np.reshape)(img, (shape[0], shape[1], shape[2])) for img, shape in zip(image_vectors, img_shapes)))

@@ -175,12 +175,12 @@ def generate_h5_slic_graph_gradients_dataset(num_imgs, n_slic, graph_type, simil
     t0 = time.time()
     # Read hdf5 file and extract its information
     images_file = h5py.File(hdf5_indir_im / "Berkeley_images.h5", "r+")
-    image_vectors = np.array(images_file["/images"])
-    img_shapes = np.array(images_file["/image_shapes"])
-    img_ids = np.array(images_file["/image_ids"])
+    image_vectors = images_file["images"][:]
+    img_shapes = images_file["image_shapes"][:]
+    img_ids = images_file["image_ids"][:]
 
     superpixels_file = h5py.File(hdf5_indir_spix / "Berkeley_superpixels.h5", "r+")
-    superpixels_vectors = np.array(superpixels_file["/superpixels"])
+    superpixels_vectors = superpixels_file["superpixels"][:]
 
     images = np.array(Parallel(n_jobs=num_cores)(
         delayed(np.reshape)(img, (shape[0], shape[1], shape[2])) for img, shape in zip(image_vectors, img_shapes)))
@@ -244,7 +244,7 @@ def generate_h5_slic_graph_gradients_dataset(num_imgs, n_slic, graph_type, simil
             print('Reading Berkeley features data set')
             print('Gabor configuration: ', features_input_dir)
             t0 = time.time()
-            feature_vectors = np.array(features_file["/gabor_features"])
+            feature_vectors = features_file["gabor_features"][:]
 
             n_freq = features_file.attrs['num_freq']
             n_angles = features_file.attrs['num_angles']

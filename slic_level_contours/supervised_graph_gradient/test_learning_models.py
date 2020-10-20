@@ -195,17 +195,17 @@ def test_models(num_imgs, similarity_measure, kneighbors=None, n_slic=None, grap
     t0 = time.time()
     # Read hdf5 file and extract its information
     images_file = h5py.File(hdf5_indir_im / "Berkeley_images.h5", "r+")
-    image_vectors = np.array(images_file["/images"])
-    img_shapes = np.array(images_file["/image_shapes"])
-    img_ids = np.array(images_file["/image_ids"])
-    img_subdirs = np.array(images_file["/image_subdirs"])
+    image_vectors = images_file["images"][:]
+    img_shapes = images_file["image_shapes"][:]
+    img_ids = images_file["image_ids"][:]
+    img_subdirs = images_file["image_subdirs"][:]
 
     images = np.array(Parallel(n_jobs=num_cores)(
         delayed(np.reshape)(img, (shape[0], shape[1], shape[2])) for img, shape in zip(image_vectors, img_shapes)))
 
     if slic_level:
         superpixels_file = h5py.File(hdf5_indir_spix / "Berkeley_superpixels.h5", "r+")
-        superpixels_vectors = np.array(superpixels_file["/superpixels"])
+        superpixels_vectors = superpixels_file["superpixels"][:]
 
         superpixels = np.array(Parallel(n_jobs=num_cores)(
             delayed(np.reshape)(img_spix, (shape[0], shape[1])) for img_spix, shape in
@@ -241,8 +241,8 @@ def test_models(num_imgs, similarity_measure, kneighbors=None, n_slic=None, grap
             print('Reading Berkeley features data set')
             print('File name: ', gradients_input_dir)
             t0 = time.time()
-            gradient_vectors = np.array(gradients_file["/perceptual_gradients"])
-            gradient_shapes = np.array(gradients_file["/gradient_shapes"])
+            gradient_vectors = gradients_file["perceptual_gradients"][:]
+            gradient_shapes = gradients_file["gradient_shapes"][:]
 
             t1 = time.time()
             print('Reading hdf5 features data set time: %.2fs' % (t1 - t0))

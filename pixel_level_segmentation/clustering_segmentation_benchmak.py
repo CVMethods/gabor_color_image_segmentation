@@ -233,9 +233,9 @@ if __name__ == '__main__':
     t0 = time.time()
     # Read hdf5 file and extract its information
     images_file = h5py.File(hdf5_indir_im / "Berkeley_images.h5", "r+")
-    image_vectors = np.array(images_file["/images"])
-    img_shapes = np.array(images_file["/image_shapes"])
-    img_ids = np.array(images_file["/image_ids"])
+    image_vectors = images_file["images"][:]
+    img_shapes = images_file["image_shapes"][:]
+    img_ids = images_file["image_ids"][:]
 
     images = Parallel(n_jobs=num_cores)(
         delayed(np.reshape)(img, (shape[0], shape[1], shape[2])) for img, shape in zip(image_vectors, img_shapes))
@@ -249,8 +249,8 @@ if __name__ == '__main__':
             print('Reading Berkeley features data set')
             print('File name: ', features_input_file)
             t0 = time.time()
-            feature_vectors = np.array(features_file["/gabor_features"])
-            feature_shapes = np.array(features_file["/feature_shapes"])
+            feature_vectors = features_file["gabor_features"][:]
+            feature_shapes = features_file["feature_shapes"][:]
 
             features = Parallel(n_jobs=num_cores)(
                 delayed(np.reshape)(features, (shape[0], shape[1])) for features, shape in zip(feature_vectors, feature_shapes))
