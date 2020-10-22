@@ -8,7 +8,7 @@ import pdb
 from PIL import Image
 from matplotlib import colors
 from mpl_toolkits.mplot3d import Axes3D
-from scipy.stats import gamma, lognorm
+from scipy.stats import gamma, lognorm, beta
 from skimage import segmentation, color, data
 from skimage.future import graph
 
@@ -200,11 +200,18 @@ def show_and_save_result(img, regions, title, label, name, fontsize, save, outdi
     plt.close()
 
 
-def show_and_save_dist(weights, thresh, params, title, name, fontsize, save, outdir, imfile):
-    x = np.linspace(0, max(weights), 100)
-    # pdf_fitted = gamma.pdf(x, *params)
-    pdf_fitted = lognorm.pdf(x, *params)
-    thr_pos = lognorm.pdf(thresh, *params)
+def show_and_save_dist(weights, law_type, thresh, params, title, name, fontsize, save, outdir, imfile):
+    x = np.linspace(0, max(weights), 1000)
+    if law_type == 'gamma':
+        pdf_fitted = gamma.pdf(x, *params)
+        thr_pos = gamma.pdf(thresh, *params)
+    elif law_type == 'log':
+        pdf_fitted = lognorm.pdf(x, *params)
+        thr_pos = lognorm.pdf(thresh, *params)
+    elif law_type == 'beta':
+        pdf_fitted = beta.pdf(x, *params)
+        thr_pos = beta.pdf(thresh, *params)
+
     plt.figure()
     plt.hist(weights, bins='auto', color='k', density=True)
     plt.plot(x, pdf_fitted, color='r')

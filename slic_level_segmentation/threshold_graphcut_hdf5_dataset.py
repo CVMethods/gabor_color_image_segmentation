@@ -79,10 +79,10 @@ def get_thr_graphcut_metrics(im_file, img, regions_slic, graph_raw, perceptual_g
     # region = 109
     # show_and_save_some_regions(img, regions, region, rag, save_fig, outdir, file_name)
 
-    # # Edges weight distribution
-    # fig_title = 'Edges Weight Distribution'
-    # img_name = '_weight_dist'
-    # show_and_save_dist(weights, thresh, params, fig_title, img_name, fontsize, save_fig, outdir, file_name)
+    # Edges weight distribution
+    fig_title = 'Edges Weight Distribution' + law_type
+    img_name = '_weight_dist'
+    show_and_save_dist(weights, law_type, thresh, params, fig_title, img_name, fontsize, save_fig, output_dir, file_name)
 
     # RAG after cut
     fig_title = 'RAG after cut'
@@ -158,7 +158,7 @@ def threshold_graphcut_segmentation(num_imgs, n_slic, graph_type, similarity_mea
         images = images[test_indices]
         superpixels = superpixels[test_indices]
 
-        model_input_dirs = os.listdir(hdf5_indir_grad)
+        model_input_dirs = sorted(os.listdir(hdf5_indir_grad))
         for mm, model_name in enumerate(model_input_dirs):
             input_files = os.listdir(hdf5_indir_grad / model_name)
             all_f_scores = []
@@ -284,9 +284,6 @@ def threshold_graphcut_segmentation(num_imgs, n_slic, graph_type, similarity_mea
             plt.grid()
             plt.savefig(outdir + 'Thr_graphcut_precisions_' + law_type + '_' + graph_mode + '_boxplot.png',
                         bbox_inches='tight')
-
-
-
 
     elif gradients_dir == 'gradients':
 
