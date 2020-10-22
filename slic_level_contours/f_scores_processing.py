@@ -159,7 +159,7 @@ def process_contours_fscores(num_imgs, n_slic, graph_type, similarity_measure, g
 if __name__ == '__main__':
     num_imgs = 7
 
-    n_slic = 500 * 4
+    base = 500
 
     # Graph function parameters
     graph_type = 'rag'  # Choose: 'complete', 'knn', 'rag', 'eps'
@@ -170,4 +170,6 @@ if __name__ == '__main__':
     gradients_dir = 'predicted_gradients'  # 'predicted_gradients'
     bsd_subset = 'all'
 
-    process_contours_fscores(num_imgs, n_slic, graph_type, similarity_measure, gradients_dir, bsd_subset)
+    for ns in [3, 5, 7, 9, 11]:
+        n_slic = base * ns
+        process_contours_fscores(num_imgs, n_slic, graph_type, similarity_measure, gradients_dir, bsd_subset)

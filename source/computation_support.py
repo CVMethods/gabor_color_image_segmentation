@@ -125,8 +125,8 @@ def cost_matrix_texture(n_freq, n_angles, f_bandwidth):
     CM = np.zeros((sz, sz))
     for ii in range(sz):
         for jj in range(sz):
-            delta_freq = pos1[0][ii]**(2**f_bandwidth) - pos2[0][jj]**(2**f_bandwidth)
-            # delta_freq = pos1[0][ii] - pos2[0][jj]
+            # delta_freq = pos1[0][ii]**(2**f_bandwidth) - pos2[0][jj]**(2**f_bandwidth)
+            delta_freq = pos1[0][ii] - pos2[0][jj]
             delta_theta = min(np.abs(pos1[1][ii] - pos2[1][jj]),
                               n_angles - np.abs(pos1[1][ii] - pos2[1][jj]))
             CM[ii, jj] = np.abs(delta_freq) + np.abs(delta_theta)  # the deltas had a value of 0.001
@@ -152,7 +152,7 @@ def em_dist_mine(signature, CM):
     w2 = np.float64(signature[1] / signature[1].sum())
     #     w1 = np.float64(softmax(signature[0]))
     #     w2 = np.float64(softmax(signature[1]))
-    return ot.emd2(w1, w2, CM, processes=-1) + np.abs(signature[0].sum() - signature[1].sum())  # The abs() was multiplied by 2
+    return ot.emd2(w1, w2, CM, processes=-1) + np.abs(signature[0].sum()**4 - signature[1].sum()**4)  # The abs() was multiplied by 2
 
 
 def dist_label(labels):

@@ -115,14 +115,14 @@ def generate_h5_features_dataset(num_imgs, periods, bandwidths, crossing_points,
 
     # Generating Gabor filterbank
     r_type = 'L2'  # 'real'
-    gsmooth = False
+    gsmooth = True
     opn = True
-    selem_size = 2
+    selem_size = 1
     num_cores = -1
 
     for (min_period, max_period), (fb, ab), (c1, c2), stds in itertools.product(periods, bandwidths,
                                                                               crossing_points, deviations):
-        print('Generating Gabor filterbank')
+        print('Generating Gabor filterbank ')
 
         gabor_filters, frequencies, angles = makeGabor_filterbank(min_period, max_period, fb, ab, c1, c2, stds)
 
@@ -144,7 +144,10 @@ def generate_h5_features_dataset(num_imgs, periods, bandwidths, crossing_points,
         print('Reading hdf5 image data set time: %.2fs' % (t1 - t0))
 
         # ## Parallel computation of Gabor features
-        print('Computing Gabor features:')
+        gabor_conf = ('%df_%da_%dp_%dp_%.2ffb_%dab_%.2fcpf_%.2fcpa_%.1fstds'
+                      % (n_freq, n_angles, min_period, max_period, fb, ab, c1, c2, stds))
+
+        print('Computing Gabor features: ' + gabor_conf)
         t0 = time.time()
         twoChannel_imgs = Parallel(n_jobs=num_cores)(
             delayed(img2complex_normalized_colorspace)(img, shape, color_space) for img, shape in
@@ -155,9 +158,6 @@ def generate_h5_features_dataset(num_imgs, periods, bandwidths, crossing_points,
             twoChannel_imgs)
         t1 = time.time()
         print('Features computing time (using Parallel joblib): %.2fs' % (t1 - t0))
-
-        gabor_conf = ('%df_%da_%dp_%dp_%.2ffb_%dab_%.2fcpf_%.2fcpa_%.1fstds'
-                                     % (n_freq, n_angles, min_period, max_period, fb, ab, c1, c2, stds))
 
         h5_outdir = hdf5_outdir / gabor_conf
         h5_outdir.mkdir(parents=True, exist_ok=True)
