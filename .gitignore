@@ -128,3 +128,9 @@ dmypy.json
 data/outdir/
 
 outdir/
+
+*.png
+
+*.jpg
+
+*.gz
