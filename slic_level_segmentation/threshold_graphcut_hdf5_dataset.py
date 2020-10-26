@@ -10,6 +10,50 @@ from source.plot_save_figures import *
 from source.color_seg_methods import *
 
 
+def _weight_mean_color(graph, src, dst, n):
+    """Callback to handle merging nodes by recomputing mean color.
+
+    The method expects that the mean color of `dst` is already computed.
+
+    Parameters
+    ----------
+    graph : RAG
+        The graph under consideration.
+    src, dst : int
+        The vertices in `graph` to be merged.
+    n : int
+        A neighbor of `src` or `dst` or both.
+
+    Returns
+    -------
+    data : dict
+        A dictionary with the `"weight"` attribute set as the absolute
+        difference of the mean color between node `dst` and `n`.
+    """
+
+    diff = graph.nodes[dst]['mean color'] - graph.nodes[n]['mean color']
+    diff = np.linalg.norm(diff)
+    return {'weight': diff}
+
+
+def merge_mean_color(graph, src, dst):
+    """Callback called before merging two nodes of a mean color distance graph.
+
+    This method computes the mean color of `dst`.
+
+    Parameters
+    ----------
+    graph : RAG
+        The graph under consideration.
+    src, dst : int
+        The vertices in `graph` to be merged.
+    """
+    graph.nodes[dst]['total color'] += graph.nodes[src]['total color']
+    graph.nodes[dst]['pixel count'] += graph.nodes[src]['pixel count']
+    graph.nodes[dst]['mean color'] = (graph.nodes[dst]['total color'] /
+                                      graph.nodes[dst]['pixel count'])
+
+
 def get_thr_graphcut_metrics(im_file, img, regions_slic, graph_raw, perceptual_gradients, graph_mode, law_type, cut_level, gradients_dir, outdir):
     print('##############################', im_file, '##############################')
 
@@ -42,6 +86,14 @@ def get_thr_graphcut_metrics(im_file, img, regions_slic, graph_raw, perceptual_g
 
     regions_aftercut = graph2regions(graph_aftercut, regions_slic)
 
+    # Generating graph after the 1st cut
+    graph_mean_color = graph.rag_mean_color(img, regions_aftercut, mode='distance')
+
+    regions_aftermerge = graph.merge_hierarchical(regions_aftercut, graph_mean_color, thresh=70, rag_copy=False,
+                                   in_place_merge=True,
+                                   merge_func=merge_mean_color,
+                                   weight_func=_weight_mean_color)
+
     ''' Evaluation of segmentation'''
     groundtruth_segments = np.array(get_segment_from_filename(im_file))
 
@@ -55,6 +107,17 @@ def get_thr_graphcut_metrics(im_file, img, regions_slic, graph_raw, perceptual_g
         vals = m.get_metrics()
         # metrics_values.append((vals['recall'], vals['precision']))
         metrics_vals = (vals['recall'], vals['precision'])
+
+    if len(np.unique(regions_aftermerge)) == 1:
+        # metrics_values.append((0., 0.))
+        metrics_vals1 = (0., 0.)
+    else:
+        m = metrics(None, regions_aftermerge, groundtruth_segments)
+        m.set_metrics()
+        # m.display_metrics()
+        vals = m.get_metrics()
+        # metrics_values.append((vals['recall'], vals['precision']))
+        metrics_vals1 = (vals['recall'], vals['precision'])
 
     ##############################################################################
     '''Visualization Section: show and/or save images'''
@@ -91,6 +154,13 @@ def get_thr_graphcut_metrics(im_file, img, regions_slic, graph_raw, perceptual_g
     show_and_save_imgraph(img, regions_slic, graph_aftercut, fig_title, img_name, fontsize, save_fig,
                           output_dir, file_name, colbar_lim)
 
+    # RAG mean color after cut
+    fig_title = 'RAG mean color after cut'
+    img_name = '_graph_mean_color'
+    colbar_lim = (None, None)
+    show_and_save_imgraph(img, regions_aftercut, graph_mean_color, fig_title, img_name, fontsize, save_fig,
+                          output_dir, file_name, colbar_lim)
+
     ##############################################################################
     # Segmentation results visualization
     output_dir = outdir + 'results/'
@@ -106,7 +176,12 @@ def get_thr_graphcut_metrics(im_file, img, regions_slic, graph_raw, perceptual_g
     img_name = '_graphcut_result'
     show_and_save_result(img, regions_aftercut, fig_title, fig_label, img_name, fontsize, save_fig, output_dir, file_name)
 
-    return metrics_vals
+    fig_title = 'Segmentation Result '
+    fig_label = (metrics_vals1[0], metrics_vals1[1], (t1 - t0))
+    img_name = '_graphmerge_result'
+    show_and_save_result(img, regions_aftermerge, fig_title, fig_label, img_name, fontsize, save_fig, output_dir, file_name)
+
+    return metrics_vals1
 
 
 def threshold_graphcut_segmentation(num_imgs, n_slic, graph_type, similarity_measure, gradients_dir, graph_mode,
