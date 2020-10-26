@@ -104,7 +104,7 @@ def predicted_slic_gradient_computation(im_file, img, regions_slic, graph_raw, p
     graph_pred = graph_raw.copy()
 
     if isinstance(model, np.ndarray):
-        y_pred = np.sum(X_test * model, axis=-1)
+        y_pred = np.sum(sclr.fit_transform(X_test) * model, axis=-1)
     elif not isinstance(model, np.ndarray) and sclr is not None:
         y_pred = model.predict(sclr.fit_transform(X_test))
         y_pred = y_pred.flatten()
@@ -138,7 +138,7 @@ def predicted_gradient_computation(im_file, img_shape, edges_info, perceptual_gr
     X_test = perceptual_gradients[:, :-1]
 
     if isinstance(model, np.ndarray):
-        y_pred = np.sum(X_test * model, axis=-1)
+        y_pred = np.sum(sclr.fit_transform(X_test) * model, axis=-1)
     elif not isinstance(model, np.ndarray) and sclr is not None:
         y_pred = model.predict(sclr.fit_transform(X_test))
         y_pred = y_pred.flatten()
@@ -304,7 +304,7 @@ def train_test_models(num_imgs, similarity_measure, kneighbors=None, n_slic=None
             X_val = validation_dataset[:, :-1]
             y_val = validation_dataset[:, -1]
 
-            scaler = StandardScaler()  #None  #  MinMaxScaler()  #
+            scaler = MinMaxScaler()  # StandardScaler()  #None  #
 
             if scaler is not None:
                 # scaler.fit(all_imgs_gradients_flatten[:, :-1])
