@@ -16,14 +16,13 @@ from slic_level_segmentation.affinity_propagation_hdf5_dataset import *
 num_imgs = 7
 generate_h5_images_dataset(num_imgs)
 
-# ''' Generate Gabor features datasets'''
-# periods = [(2., 25.), (3., 25.), (2., 50.), (3., 50.)]
-# bandwidths = [(1, 30)]
-# crossing_points = [(0.9, 0.9)]
-# deviations = [3.]
-#
-# generate_h5_features_dataset(num_imgs, periods, bandwidths, crossing_points, deviations)
+''' Generate Gabor features datasets'''
+periods = [(2., 25.), (2., 50.)]
+bandwidths = [(1, 30)]
+crossing_points = [(0.9, 0.9)]
+deviations = [3.]
 
+generate_h5_features_dataset(num_imgs, periods, bandwidths, crossing_points, deviations)
 
 '''Generate image superpixels datasets'''
 n_slic_base = 500
