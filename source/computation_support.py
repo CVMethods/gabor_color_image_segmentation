@@ -12,7 +12,7 @@ import pdb
 from skimage.morphology import erosion, disk, dilation, closing, opening, diamond
 from pyemd import emd, emd_samples
 from joblib import Parallel, delayed
-from skimage import io
+from skimage import io, img_as_float32
 from skimage.measure import regionprops
 from sklearn.neighbors import kneighbors_graph, radius_neighbors_graph
 from skimage.filters import gabor_kernel
@@ -152,7 +152,7 @@ def em_dist_mine(signature, CM):
     w2 = np.float64(signature[1] / signature[1].sum())
     #     w1 = np.float64(softmax(signature[0]))
     #     w2 = np.float64(softmax(signature[1]))
-    return ot.emd2(w1, w2, CM, processes=-1) + np.abs(signature[0].sum()**4 - signature[1].sum()**4)  # The abs() was multiplied by 2
+    return ot.emd2(w1, w2, CM, processes=-1) + np.abs(signature[0].sum() - signature[1].sum())  # The abs() was multiplied by 2
 
 
 def dist_label(labels):
