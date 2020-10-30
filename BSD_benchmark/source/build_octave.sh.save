@@ -1,0 +1,2 @@
+octave --no-gui  "build_octave; exit"
+cp -f correspondPixels.mex* ../benchmarks/

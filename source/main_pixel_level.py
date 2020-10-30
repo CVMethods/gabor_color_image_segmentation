@@ -14,7 +14,7 @@ from slic_level_segmentation.normalized_graphcut_hdf5_dataset import *
 from slic_level_segmentation.affinity_propagation_hdf5_dataset import *
 
 
-num_imgs = 500
+num_imgs = 7
 
 # Gabor filter parameters
 periods = [(3., 40.)]  #(2., 25.),, (2., 20.), (4., 45.), (4., 20.)
@@ -27,8 +27,8 @@ kneighbors = 4
 # Distance parameter
 similarity_measure = 'OT'  # Choose: 'OT' for Earth Movers Distance or 'KL' for Kullback-Leiber divergence
 
-generate_h5_images_dataset(num_imgs)
-generate_h5_features_dataset(num_imgs, periods, bandwidths, crossing_points, deviations)
+# generate_h5_images_dataset(num_imgs)
+# generate_h5_features_dataset(num_imgs, periods, bandwidths, crossing_points, deviations)
 generate_h5_graph_gradients_dataset(num_imgs, kneighbors, similarity_measure)
 train_test_models(num_imgs, similarity_measure, kneighbors, None, None)
 
