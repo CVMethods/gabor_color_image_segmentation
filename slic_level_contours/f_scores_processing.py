@@ -11,15 +11,14 @@ from source.plot_save_figures import *
 from source.color_seg_methods import *
 
 
-def process_contours_fscores(num_imgs, n_slic, graph_type, similarity_measure, gradients_dir, bsd_subset):
+def process_contours_fscores(num_imgs, dir):
     num_cores = -1
-
     num_imgs_dir = str(num_imgs) + 'images/'
-    contours_indir = '../outdir/' + num_imgs_dir + 'image_contours/' + (str(n_slic) + '_slic_' + graph_type + '_' + similarity_measure) + '/'
+    contours_indir = '../outdir/' + num_imgs_dir + 'image_contours/' + dir + '/'
 
     scores_by_slic = []
-
     model_input_dirs = sorted(os.listdir(contours_indir))
+
     for model_name in model_input_dirs:
         input_directories = sorted([f for f in os.listdir(contours_indir + model_name) if not f.endswith('png')])
 
@@ -157,14 +156,12 @@ def process_contours_fscores(num_imgs, n_slic, graph_type, similarity_measure, g
         scores_by_slic.append(ods)
 
     df = pd.DataFrame(np.array(scores_by_slic).T, columns=model_input_dirs, index=input_directories)
-    df.name = 'ODS_%d_slic' % n_slic
+    df.name = 'ODS_' + dir
     return df
 
 
 if __name__ == '__main__':
     num_imgs = 7
-
-    base = 500
 
     # Graph function parameters
     graph_type = 'rag'  # Choose: 'complete', 'knn', 'rag', 'eps'
@@ -176,16 +173,17 @@ if __name__ == '__main__':
     bsd_subset = 'all'
 
     slic_score_df = []
-    outdir = '../outdir/' + str(num_imgs) + 'images/' + 'image_contours/'
+    indir = outdir = '../outdir/' + str(num_imgs) + 'images/' + 'image_contours/'
+    pixel_slic_directories = sorted([f for f in os.listdir(indir) if not f.endswith('xlsx') and not f.startswith('.')])
+
     writer = pd.ExcelWriter(outdir + 'pandas_multiple.xlsx', engine='xlsxwriter')
     workbook = writer.book
     worksheet = workbook.add_worksheet('Results')
     writer.sheets['Results'] = worksheet
 
-    for i_df, ns in enumerate([3, 5,  7, 9, 11]):
-        n_slic = base * ns
-        print('Recovering scores for methods with %d slics' % n_slic)
-        slic_score_df.append(process_contours_fscores(num_imgs, n_slic, graph_type, similarity_measure, gradients_dir, bsd_subset))
+    for i_df, in_dir in enumerate(pixel_slic_directories):
+        print('Recovering scores for ' + in_dir)
+        slic_score_df.append(process_contours_fscores(num_imgs, in_dir))
         worksheet.write_string((slic_score_df[i_df].shape[0]+5) * i_df, 0, slic_score_df[i_df].name)
         slic_score_df[i_df].to_excel(writer, startrow=(slic_score_df[i_df].shape[0]+5) * i_df+1, startcol=0, sheet_name='Results')
     writer.save()
