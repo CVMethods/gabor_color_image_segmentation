@@ -131,24 +131,14 @@ def prepare_dataset(img_id, image, gabor_features, img_shape):
 
 
 if __name__ == '__main__':
-    np.random.seed(0)
-    num_cores = -1
 
     num_imgs = 7
 
-    hdf5_dir = Path('../../data/hdf5_datasets/')
-
-    if num_imgs is 500:
-        # Path to whole Berkeley image data set
-        hdf5_indir_im = hdf5_dir / 'complete' / 'images'
-        hdf5_indir_feat = hdf5_dir / 'complete' / 'features'
-        num_imgs_dir = 'complete/'
-
-    elif num_imgs is 7:
-        # Path to my 7 favourite images from the Berkeley data set
-        hdf5_indir_im = hdf5_dir / '7images/' / 'images'
-        hdf5_indir_feat = hdf5_dir / '7images/' / 'features'
-        num_imgs_dir = '7images/'
+    np.random.seed(0)
+    num_cores = -1
+    hdf5_indir_im = Path('../../data/hdf5_datasets/' + str(num_imgs) + 'images/' + 'images')
+    hdf5_indir_feat = Path('../../data/hdf5_datasets/'+str(num_imgs)+'images/' + 'features')
+    num_imgs_dir = str(num_imgs) + 'images/'
 
     print('Reading Berkeley image data set')
     t0 = time.time()
@@ -166,7 +156,7 @@ if __name__ == '__main__':
 
     input_files = os.listdir(hdf5_indir_feat)
     for features_input_file in input_files:
-        with h5py.File(hdf5_indir_feat / features_input_file, "r+") as features_file:
+        with h5py.File(hdf5_indir_feat / features_input_file / 'Gabor_features.h5', "r+") as features_file:
             print('Reading Berkeley features data set')
             print('File name: ', features_input_file)
             t0 = time.time()
@@ -191,8 +181,12 @@ if __name__ == '__main__':
 
             for num_clusters in possible_num_clusters:
                 print('\nComputing %s number of cluster: ' % num_clusters)
-                outdir = '../outdir/pixel_level_segmentation/' + num_imgs_dir + algo_name + '/' + features_input_file[
-                                                                                                  :-3] + '/' + num_clusters + '_nclusters/'
+                outdir = '../outdir/' + \
+                         num_imgs_dir + \
+                         'pixel_level_segmentation/' + \
+                         algo_name + '/' + \
+                         features_input_file[:-3] + '/' + \
+                         num_clusters + '_nclusters/'
 
                 if not os.path.exists(outdir):
                     os.makedirs(outdir)
