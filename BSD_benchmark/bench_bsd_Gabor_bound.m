@@ -2,11 +2,11 @@ addpath benchmarks
 
 clear all;close all;clc;
 
-num_imgs = 7
+num_imgs = 500;
 imgDir = '../../data/images/'+ string(num_imgs) + 'images/test/';
 gtDir = '../../data/groundTruth/';
 inDir = '../outdir/'+ string(num_imgs) + 'images/image_contours';
-nthresh = 50;
+nthresh = 5;
 
 %%
 % openfig('isoF.fig')
@@ -35,6 +35,10 @@ for i = 1:numel(nslic_list_dir)
     %         disp(gabor_combination_dir);
             outDir = fullfile(strcat(gabor_combination_dir(k).folder), strcat(gabor_combination_dir(k).name))
             disp(outDir);
+            %% clean up
+            system(sprintf('rm -f %s/eval_bdry.txt',outDir));
+            system(sprintf('rm -f %s/eval_bdry_img.txt',outDir));
+            system(sprintf('rm -f %s/eval_bdry_thr.txt',outDir));
             tic;
             boundaryBench(imgDir, gtDir, outDir, outDir, nthresh);
             toc;
