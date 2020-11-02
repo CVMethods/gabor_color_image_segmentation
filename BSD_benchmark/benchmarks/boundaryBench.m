@@ -35,7 +35,7 @@ parfor i = 1:numel(iids),
     if ~exist(inFile,'file'),
         inFile = fullfile(pbDir, strcat(iids(i).name(1:end-4),'.png'));
     end
-    subDir = dir(fullfile(gtDir, '**', strcat(iids(i).name(1:end-4),'.mat'))).folder
+    subDir = dir(fullfile(gtDir, '**', strcat(iids(i).name(1:end-4),'.mat'))).folder;
     gtFile = fullfile(subDir, strcat(iids(i).name(1:end-4),'.mat'));
     evaluation_bdry_image(inFile,gtFile, evFile, nthresh, maxDist, thinpb);
     disp(i);

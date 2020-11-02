@@ -39,8 +39,8 @@ elseif ~exist('segs', 'var')
 end
 
 
-load(gtFile);
-if isempty(groundTruth),
+gt = load(gtFile);
+if isempty(gt.groundTruth),
     error(' bad gtFile !');
 end
 
@@ -78,13 +78,13 @@ for t = 1:nthresh,
     accP = zeros(size(bmap));
     
     % compare to each seg in turn
-    for i = 1:numel(groundTruth),
+    for i = 1:numel(gt.groundTruth),
         % compute the correspondence
-        [match1,match2] = correspondPixels(bmap, double(groundTruth{i}.Boundaries), maxDist);
+        [match1,match2] = correspondPixels(bmap, double(gt.groundTruth{i}.Boundaries), maxDist);
         % accumulate machine matches
         accP = accP | match1;
         % compute recall
-        sumR(t) = sumR(t) + sum(groundTruth{i}.Boundaries(:));
+        sumR(t) = sumR(t) + sum(gt.groundTruth{i}.Boundaries(:));
         cntR(t) = cntR(t) + sum(match2(:)>0);
     end
     

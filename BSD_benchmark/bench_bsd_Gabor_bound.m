@@ -6,7 +6,7 @@ num_imgs = 500;
 imgDir = '../../data/images/'+ string(num_imgs) + 'images/test/';
 gtDir = '../../data/groundTruth/';
 inDir = '../outdir/'+ string(num_imgs) + 'images/image_contours';
-nthresh = 5;
+nthresh = 99;
 
 %%
 % openfig('isoF.fig')
