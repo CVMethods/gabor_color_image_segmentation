@@ -15,8 +15,6 @@ for s = 1 : numel(groundTruth)
         for j = 1:ty
             u = seg(i,j);
             v = gt(i,j); 
-            disp(u)
-            disp(v)
             confcounts(u,v) = confcounts(u,v)+1;
         end
     end

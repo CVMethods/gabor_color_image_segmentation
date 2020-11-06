@@ -21,11 +21,12 @@ if nargin<5, nthresh = 99; end
 
 
 iids = dir(fullfile(imgDir,'*.jpg'));
-for i = 1 : numel(iids),
+parfor i = 1 : numel(iids),
     evFile4 = fullfile(outDir, strcat(iids(i).name(1:end-4), '_ev4.txt'));
     if ~isempty(dir(evFile4)), continue; end
     inFile = fullfile(inDir, strcat(iids(i).name(1:end-4), '.mat'));
-    gtFile = fullfile(gtDir, strcat(iids(i).name(1:end-4), '.mat'));
+    subDir = dir(fullfile(gtDir, '**', strcat(iids(i).name(1:end-4),'.mat'))).folder;
+    gtFile = fullfile(subDir, strcat(iids(i).name(1:end-4), '.mat'));
     evFile2 = fullfile(outDir, strcat(iids(i).name(1:end-4), '_ev2.txt'));
     evFile3 = fullfile(outDir, strcat(iids(i).name(1:end-4), '_ev3.txt'));
     

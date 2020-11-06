@@ -32,7 +32,7 @@ if strcmp(e,'.mat'),
 end
 
 if exist('ucm2', 'var'),
-    pb = double(ucm2);%(3:2:end, 3:2:end)
+    pb = double(ucm2(2:2:end, 2:2:end));%(3:2:end, 3:2:end)
     clear ucm2;
 elseif ~exist('segs', 'var')
     pb = double(imread(inFile))/255;
@@ -61,22 +61,22 @@ cntP = zeros(size(thresh));
 sumP = zeros(size(thresh));
 
 for t = 1:nthresh,
-    
+
     if ~exist('segs', 'var')
         bmap = (pb>=thresh(t));
     else
         bmap = logical(seg2bdry(segs{t},'imageSize'));
     end
-    
+
     % thin the thresholded pb to make sure boundaries are standard thickness
     if thinpb,
         bmap = double(bwmorph(bmap, 'thin', inf));    % OJO
     end
-    
+
     % accumulate machine matches, since the machine pixels are
     % allowed to match with any segmentation
     accP = zeros(size(bmap));
-    
+
     % compare to each seg in turn
     for i = 1:numel(gt.groundTruth),
         % compute the correspondence
@@ -87,7 +87,7 @@ for t = 1:nthresh,
         sumR(t) = sumR(t) + sum(gt.groundTruth{i}.Boundaries(:));
         cntR(t) = cntR(t) + sum(match2(:)>0);
     end
-    
+
     % compute precision
     sumP(t) = sumP(t) + sum(bmap(:));
     cntP(t) = cntP(t) + sum(accP(:));
@@ -101,4 +101,3 @@ if fid==-1,
 end
 fprintf(fid,'%10g %10g %10g %10g %10g\n',[thresh cntR sumR cntP sumP]');
 fclose(fid);
-

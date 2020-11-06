@@ -35,8 +35,8 @@ elseif ~exist('segs', 'var')
     error('unexpected input in inFile');
 end
 
-load(gtFile);
-nsegs = numel(groundTruth);
+gt = load(gtFile);
+nsegs = numel(gt.groundTruth);
 if nsegs == 0,
     error(' bad gtFile !');
 end
@@ -54,10 +54,10 @@ end
 regionsGT = [];
 total_gt = 0;
 for s = 1 : nsegs
-    groundTruth{s}.Segmentation = double(groundTruth{s}.Segmentation);
-    regionsTmp = regionprops(groundTruth{s}.Segmentation, 'Area');
+    gt.groundTruth{s}.Segmentation = double(gt.groundTruth{s}.Segmentation);
+    regionsTmp = regionprops(gt.groundTruth{s}.Segmentation, 'Area');
     regionsGT = [regionsGT; regionsTmp];
-    total_gt = total_gt + max(groundTruth{s}.Segmentation(:));
+    total_gt = total_gt + max(gt.groundTruth{s}.Segmentation(:));
 end
 
 % zero all counts
@@ -71,19 +71,19 @@ sumVOI = zeros(size(thresh));
 best_matchesGT = zeros(1, total_gt);
 
 for t = 1 : nthresh,
-    
+
     if exist('segs', 'var')
         seg = double(segs{t});
     else
         labels2 = bwlabel(ucm <= thresh(t));
-        seg = labels2(2:2:end, 2:2:end); % 
+        seg = labels2(3:2:end, 3:2:end);
     end
-    
-    [ri voi] = match_segmentations2(seg, groundTruth);
+
+    [ri voi] = match_segmentations2(seg, gt.groundTruth);
     sumRI(t) = ri;
     sumVOI(t) = voi;
-    
-    [matches] = match_segmentations(seg, groundTruth);
+
+    [matches] = match_segmentations(seg, gt.groundTruth);
     matchesSeg = max(matches, [], 2);
     matchesGT = max(matches, [], 1);
 
@@ -92,12 +92,12 @@ for t = 1 : nthresh,
         cntP(t) = cntP(t) + regionsSeg(r).Area*matchesSeg(r);
         sumP(t) = sumP(t) + regionsSeg(r).Area;
     end
-    
+
     for r = 1 : numel(regionsGT),
         cntR(t) = cntR(t) +  regionsGT(r).Area*matchesGT(r);
         sumR(t) = sumR(t) + regionsGT(r).Area;
     end
-    
+
     best_matchesGT = max(best_matchesGT, matchesGT);
 
 end
@@ -109,24 +109,22 @@ for r = 1 : numel(regionsGT),
 end
 
 fid = fopen(evFile2, 'w');
-if fid == -1, 
+if fid == -1,
     error('Could not open file %s for writing.', evFile2);
 end
 fprintf(fid,'%10g %10g %10g %10g %10g\n',[thresh, cntR, sumR, cntP, sumP]');
 fclose(fid);
 
 fid = fopen(evFile3, 'w');
-if fid == -1, 
+if fid == -1,
     error('Could not open file %s for writing.', evFile3);
 end
 fprintf(fid,'%10g\n', cntR_best);
 fclose(fid);
 
 fid = fopen(evFile4, 'w');
-if fid == -1, 
+if fid == -1,
     error('Could not open file %s for writing.', evFile4);
 end
 fprintf(fid,'%10g %10g %10g\n',[thresh, sumRI, sumVOI]');
 fclose(fid);
-
-

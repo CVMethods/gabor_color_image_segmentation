@@ -2,11 +2,12 @@ addpath benchmarks
 
 clear all;close all;clc;
 
-num_imgs = 500;
+num_imgs = 25;
 imgDir = '../../data/images/'+ string(num_imgs) + 'images/test/';
 gtDir = '../../data/groundTruth/';
-inDir = '../outdir/'+ string(num_imgs) + 'images/image_contours';
-nthresh = 99;
+inDir = '../outdir/'+ string(num_imgs) + 'images/image_contours/';
+%inDir = '../outdir/'+ string(num_imgs) + 'images/image_segmentations/';
+nthresh = 20;
 
 %%
 % openfig('isoF.fig')
@@ -33,14 +34,22 @@ for i = 1:numel(nslic_list_dir)
         for k = 1 :length(gabor_combination_dir)
             list_dir_pngs = dir(fullfile(strcat(gabor_combination_dir(k).folder), strcat(gabor_combination_dir(k).name), '*.png'));
     %         disp(gabor_combination_dir);
-            outDir = fullfile(strcat(gabor_combination_dir(k).folder), strcat(gabor_combination_dir(k).name))
+            outDir = fullfile(strcat(gabor_combination_dir(k).folder), strcat(gabor_combination_dir(k).name));
             disp(outDir);
             %% clean up
             system(sprintf('rm -f %s/eval_bdry.txt',outDir));
             system(sprintf('rm -f %s/eval_bdry_img.txt',outDir));
             system(sprintf('rm -f %s/eval_bdry_thr.txt',outDir));
+            system(sprintf('rm -f %s/eval_cover.txt',outDir));
+            system(sprintf('rm -f %s/eval_cover_img.txt',outDir));
+            system(sprintf('rm -f %s/eval_cover_th.txt',outDir));
+            system(sprintf('rm -f %s/eval_RI_VOI.txt',outDir));
+            system(sprintf('rm -f %s/eval_RI_VOI_thr.txt',outDir));
+            
+            %%
             tic;
             boundaryBench(imgDir, gtDir, outDir, outDir, nthresh);
+            %allBench(imgDir, gtDir, outDir, outDir, nthresh);
             toc;
             plot_eval(outDir);      
             close all;
