@@ -14,15 +14,19 @@ from slic_level_segmentation.affinity_propagation_hdf5_dataset import *
 
 ''' Generate images dataset'''
 num_imgs = 7
+
+print('\n Generating images dataset  \n')
 generate_h5_images_dataset(num_imgs)
 
 ''' Generate Gabor features datasets'''
-periods = [(2., 25.), (2., 50.)]
+periods = [(3., 25.)]  # (2., 50.), (2., 25.), (3., 50.)
 bandwidths = [(1, 30)]
 crossing_points = [(0.9, 0.9)]
 deviations = [3.]
+colorspaces = ['HSV', 'LAB', 'HLS'] #  HSV, HLS, LAB
 
-generate_h5_features_dataset(num_imgs, periods, bandwidths, crossing_points, deviations)
+print('\n Generating features dataset \n')
+generate_h5_features_dataset(num_imgs, periods, bandwidths, crossing_points, deviations, colorspaces)
 
 '''Generate image superpixels datasets'''
 n_slic_base = 500
@@ -34,7 +38,7 @@ similarity_measure = 'OT'  # Choose: 'OT' for Earth Movers Distance or 'KL' for 
 # Directory parameter
 gradients_dir = 'predicted_gradients'
 
-for ns in [3, 7, 11]:#[3, 5, 7, 9, 11]
+for ns in [5, 7, 9]:  # [3, 5, 7, 9, 11]
     # Superpixel parameters
     n_slic = n_slic_base * ns
 
@@ -44,7 +48,7 @@ for ns in [3, 7, 11]:#[3, 5, 7, 9, 11]
     print('\n Computing %d slic Graph Gradients dataset \n' % n_slic)
     generate_h5_slic_graph_gradients_dataset(num_imgs, n_slic, graph_type, similarity_measure)
 
-    print('\n Computing %d slic learning stage' % n_slic)
+    print('\n Computing %d slic learning stage \n' % n_slic)
     train_test_models(num_imgs, similarity_measure, None, n_slic, graph_type)
 
     print('\n Computing %d slic image boundaries \n' % n_slic)

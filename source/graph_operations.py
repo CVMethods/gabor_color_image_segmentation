@@ -15,7 +15,7 @@ def update_edges_weight(regions, rag, gabor_energies, ground_dist, method):
     i_superpixel = np.unique(regions)
     superpixel_signatures = []
     for ii in i_superpixel:
-        superpixel_signatures.append(gabor_energies[regions == ii].sum(axis=0)/gabor_energies[regions == ii].shape[0])  # Normalized w/suppix size
+        superpixel_signatures.append(gabor_energies[regions == ii].sum(axis=0)/gabor_energies[regions == ii].shape[0])  # Normalized wrt suppix size
         # superpixel_signatures.append(gabor_energies[regions == ii].sum(axis=0))  # Not Normalized
 
     num_cores = multiprocessing.cpu_count()
@@ -24,12 +24,12 @@ def update_edges_weight(regions, rag, gabor_energies, ground_dist, method):
         # texture_dist = np.array(Parallel(n_jobs=num_cores)(
         #     delayed(em_dist_Rubner)(np.float64((superpixel_signatures[e[0]], superpixel_signatures[e[1]])),
         #                           ground_dist) for e in list(rag.edges)))
-        # texture_dist = np.array(Parallel(n_jobs=num_cores)(
-        #     delayed(em_dist_Pele)(np.float64((superpixel_signatures[e[0]], superpixel_signatures[e[1]])),
-        #                           ground_dist) for e in list(rag.edges)))
         texture_dist = np.array(Parallel(n_jobs=num_cores)(
-            delayed(em_dist_mine)(np.float64((superpixel_signatures[e[0]], superpixel_signatures[e[1]])),
+            delayed(em_dist_Pele)(np.float64((superpixel_signatures[e[0]], superpixel_signatures[e[1]])),
                                   ground_dist) for e in list(rag.edges)))
+        # texture_dist = np.array(Parallel(n_jobs=num_cores)(
+        #     delayed(em_dist_mine)(np.float64((superpixel_signatures[e[0]], superpixel_signatures[e[1]])),
+        #                           ground_dist) for e in list(rag.edges)))
 
         for ii, e in enumerate(list(rag.edges)):
             rag_weighted[e[0]][e[1]]['weight'] = texture_dist[ii]

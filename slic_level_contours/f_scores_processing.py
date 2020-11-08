@@ -157,11 +157,12 @@ def process_contours_fscores(num_imgs, dir):
 
     df = pd.DataFrame(np.array(scores_by_slic).T, columns=model_input_dirs, index=input_directories)
     df.name = 'ODS_' + dir
+    print(df.name)
     return df
 
 
 if __name__ == '__main__':
-    num_imgs = 7
+    num_imgs = 25
 
     # Graph function parameters
     graph_type = 'rag'  # Choose: 'complete', 'knn', 'rag', 'eps'

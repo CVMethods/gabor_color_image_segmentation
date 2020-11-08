@@ -101,13 +101,13 @@ def perceptual_gradient_computation(im_file, img_shape, edges_info, g_energies, 
 
     ''' Updating edges weights with similarity measure (OT/KL) '''
     weights_lum = np.array(Parallel(n_jobs=int(num_cores/3))
-                           (delayed(em_dist_mine)(np.float64(g_energies_lum[e]), ground_distance) for e in edges_index))
+                           (delayed(em_dist_Pele)(np.float64(g_energies_lum[e]), ground_distance) for e in edges_index))
 
     weights_cr = np.array(Parallel(n_jobs=int(num_cores/3))
-                          (delayed(em_dist_mine)(np.float64(g_energies_cr[e]), ground_distance) for e in edges_index))
+                          (delayed(em_dist_Pele)(np.float64(g_energies_cr[e]), ground_distance) for e in edges_index))
 
     weights_ci = np.array(Parallel(n_jobs=int(num_cores/3))
-                          (delayed(em_dist_mine)(np.float64(g_energies_ci[e]), ground_distance) for e in edges_index))
+                          (delayed(em_dist_Pele)(np.float64(g_energies_ci[e]), ground_distance) for e in edges_index))
 
     ''' Computing target gradient from the ground truth'''
     ground_truth_segments = np.array(get_segment_from_filename(im_file))
@@ -117,7 +117,7 @@ def perceptual_gradient_computation(im_file, img_shape, edges_info, g_energies, 
         weights_gt += np.array(Parallel(n_jobs=num_cores)(
             delayed(dist_label)((truth[e[0]], truth[e[1]])) for e in list(edges_index)))
 
-    weights_gt = (weights_gt - min(weights_gt)) / (max(weights_gt) - min(weights_gt))
+    weights_gt = (weights_gt - min(weights_gt)) / (max(weights_gt) - min(weights_gt)) * 100
 
     stacked_gradients = np.column_stack((weights_lum, weights_cr, weights_ci, weights_gt))
 

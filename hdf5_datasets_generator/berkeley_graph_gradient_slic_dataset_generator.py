@@ -114,7 +114,7 @@ def perceptual_slic_gradient_computation(im_file, img, regions_slic, graph_type,
         graph_weighted_gt = graph_gt.copy()
 
     weights_gt = np.fromiter(nx.get_edge_attributes(graph_weighted_gt, 'weight').values(), dtype=np.float32)
-    weights_gt = (weights_gt - min(weights_gt)) / (max(weights_gt) - min(weights_gt))
+    weights_gt = (weights_gt - min(weights_gt)) / (max(weights_gt) - min(weights_gt)) * 100
 
     for i_edge, e in enumerate(list(graph_weighted_gt.edges)):
         graph_weighted_gt[e[0]][e[1]]['weight'] = weights_gt[i_edge]

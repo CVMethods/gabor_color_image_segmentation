@@ -156,6 +156,10 @@ def predicted_gradient_computation(im_file, img_shape, edges_info, perceptual_gr
     plt.imshow(gradient_pred.reshape(rows, cols), cmap='gray')
     plt.savefig(outdir + im_file + '_pred_grad.png')
 
+    plt.cla()
+    plt.clf()
+    plt.close('all')
+
     # img_grad = (gradient_pred - min(gradient_pred)) / (max(gradient_pred) - min(gradient_pred)) * 255
     # ##############################################################################
     # '''Visualization Section: show and/or save images'''

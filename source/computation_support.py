@@ -142,7 +142,7 @@ def em_dist_Rubner(signature, CM):
 
 # Function for EMD (new) version for non-normalized histograms [Pele et. al.]
 def em_dist_Pele(signature, CM):
-    dist = emd(signature[0], signature[1], CM, extra_mass_penalty=1)
+    dist = emd(signature[0], signature[1], CM, extra_mass_penalty=-1)
     return dist
 
 
@@ -183,7 +183,7 @@ def balance_classes(X, y):
     ind = np.argsort(cnts)[::-1]
     X_resampled = X[y == cls[ind[0]], :]
     y_resampled = y[y == cls[ind[0]]]
-    mu, sigma = 0, 0.1
+    mu, sigma = 0, 1
     for ii in cls[1:]:
         XX = X[y == ii, :]
         yy = y[y == ii]
