@@ -19,7 +19,7 @@ def normalize_img(img, rows, cols):
 def linear_normalization(arr, nmax, nmin):
     minarr = np.min(arr)
     maxarr = np.max(arr)
-    return (arr - minarr) * ((nmax - nmin)/ (maxarr - minarr)) + nmin
+    return (arr - minarr) * ((nmax - nmin) / (maxarr - minarr)) + nmin
 
 
 def linear_normalization2(arr):
@@ -42,24 +42,14 @@ def img2complex_colorspace(img, color_space):
 
 #     img = img_as_float32(img.astype('uint8')) # The input image must be float32 between [0, 1]
 
-    if color_space == 'HV':
-        img_hsv = cv2.cvtColor(img, cv2.COLOR_RGB2HSV)
-        ch1 = np.deg2rad(img_hsv[:, :, 0]) # Change the H channel from deg to rag #img_hsv[:, :, 0]#
-        ch2 = img_hsv[:, :, 1] * 255. #* 100. # Change the S channel between [0, 1]
-        ch3 = img_hsv[:, :, 2] * 255. #* 100. # Change the V channel between [0, 1]
-
-        luminance = ch2
-        chrominance = ch3 * np.exp(1j * ch1)
-        chrominance_real = chrominance.real
-        chrominance_imag = chrominance.imag
-        cs = 'HSV'
-
     if color_space == 'HLS':
         img_hls = cv2.cvtColor(img, cv2.COLOR_RGB2HLS).astype('float32')
-        ch1 = np.deg2rad(img_hls[:, :, 0])
-        ch2 = img_hls[:, :, 1]
-        ch3 = img_hls[:, :, 2]
-        print(ch1.max(), ch1.min(), ch2.max(), ch2.min(), ch3.max(), ch3.min())
+        ch1 = np.deg2rad(img_hls[:, :, 0] * 2)
+        ch2 = img_hls[:, :, 1] / 255.
+        ch3 = img_hls[:, :, 2] / 255.
+        # print('H min:', ch1.min(), ', max:', ch1.max())
+        # print('L min:', ch2.min(), ', max:', ch2.max())
+        # print('S min:', ch3.min(), ', max:', ch3.max())
 
         luminance = ch2
         chrominance = ch3 * np.exp(1j * ch1)
@@ -67,14 +57,16 @@ def img2complex_colorspace(img, color_space):
         chrominance_imag = chrominance.imag
         cs = 'HLS'
 
-    if color_space == 'HS':
+    if color_space == 'HSV':
         img_hsv = cv2.cvtColor(img, cv2.COLOR_RGB2HSV).astype('float32')
         ch1 = np.deg2rad(img_hsv[:, :, 0] * 2)
-        ch2 = img_hsv[:, :, 1]
-        ch3 = img_hsv[:, :, 2]
-        print((img_hsv[:, :, 0]).max(), (img_hsv[:, :, 0]).min(), ch2.max(), ch2.min(), ch3.max(), ch3.min())
+        ch2 = img_hsv[:, :, 1] / 255.
+        ch3 = img_hsv[:, :, 2] / 255.
+        # print('H min:', ch1.min(), ', max:', ch1.max())
+        # print('S min:', ch2.min(), ', max:', ch2.max())
+        # print('V min:', ch3.min(), ', max:', ch3.max())
 
-        luminance = cv2.cvtColor(img, cv2.COLOR_RGB2GRAY).astype('float32')  # calc_luminance(img) #ch3#ch3 #
+        luminance = cv2.cvtColor(img, cv2.COLOR_RGB2GRAY).astype('float32') / 255.  # calc_luminance(img) #ch3#ch3 #
         chrominance = ch2 * np.exp(1j * ch1)
         chrominance_real = chrominance.real
         chrominance_imag = chrominance.imag
@@ -82,10 +74,12 @@ def img2complex_colorspace(img, color_space):
 
     if color_space == 'LAB':
         img_lab = cv2.cvtColor(img, cv2.COLOR_RGB2LAB).astype('float32')
-        ch1 = img_lab[:, :, 0]  # L channel between [0, 255]
-        ch2 = img_lab[:, :, 1]  # a channel between [0, 255]
-        ch3 = img_lab[:, :, 2]  # b channel between [0, 255]
-        print(ch1.max(), ch1.min(), ch2.max(), ch2.min(), ch3.max(), ch3.min())
+        ch1 = img_lab[:, :, 0] / 255.  # L channel between [0, 255]
+        ch2 = img_lab[:, :, 1] / 255.  # a channel between [0, 255]
+        ch3 = img_lab[:, :, 2] / 255.  # b channel between [0, 255]
+        # print('L min:', ch1.min(), ', max:', ch1.max())
+        # print('A min:', ch2.min(), ', max:', ch2.max())
+        # print('B min:', ch3.min(), ', max:', ch3.max())
 
         luminance = ch1
         chrominance = ch2 + (1j * ch3)
@@ -99,20 +93,19 @@ def img2complex_colorspace(img, color_space):
 #     axs[2].imshow(ch3, cmap='gray')
 #     fig.suptitle('Image channels in '+ cs +' color space')
 
-    return luminance, chrominance_real, chrominance_imag
+    return np.array((luminance, chrominance_real, chrominance_imag))
 
 
-def img2complex_normalized_colorspace(img, img_shape, color_space='HS'):
+def img2complex_normalized_colorspace(img, img_shape, color_space='HSV'):
 
     rows, cols, channels = img_shape
-    lum, chrom_r, chrom_i = img2complex_colorspace(img, color_space)
+    img_2ch = img2complex_colorspace(img, color_space)
 
     ##################################  Luminance and chrominance normalization ##################################
     # lum = linear_normalization(lum, 255., 0.)
     # chrom_r = linear_normalization(chrom_r, 255., 0.)  # linear_normalization2(chrom_r)
     # chrom_i = linear_normalization(chrom_i, 255., 0.)  # linear_normalization2(chrom_i)
 
-    img_2ch = np.array((lum, chrom_r, chrom_i))
     img_2ch_norm = normalize_img(img_2ch, rows, cols)
 
     return img_2ch_norm
