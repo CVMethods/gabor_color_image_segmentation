@@ -182,10 +182,13 @@ if __name__ == '__main__':
     worksheet = workbook.add_worksheet('Results')
     writer.sheets['Results'] = worksheet
 
+    row = 0
     for i_df, in_dir in enumerate(pixel_slic_directories):
         print('Recovering scores for ' + in_dir)
         slic_score_df.append(process_contours_fscores(num_imgs, in_dir))
-        worksheet.write_string((slic_score_df[i_df].shape[0]+5) * i_df, 0, slic_score_df[i_df].name)
-        slic_score_df[i_df].to_excel(writer, startrow=(slic_score_df[i_df].shape[0]+5) * i_df+1, startcol=0, sheet_name='Results')
+
+        worksheet.write_string(row, 0, slic_score_df[i_df].name)
+        slic_score_df[i_df].to_excel(writer, startrow=row+1, startcol=0, sheet_name='Results')
+        row += len(slic_score_df[i_df]) + 5
     writer.save()
 
