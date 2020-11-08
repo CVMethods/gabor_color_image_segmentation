@@ -28,6 +28,8 @@ from source.visualization import *
 import pandas as pd
 import metis
 
+import higra as hg
+
 
 def color_histogram(img, n_bins):
     w, _ = np.histogramdd(img, bins=n_bins)
